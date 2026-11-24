@@ -1,6 +1,6 @@
 // Service worker de QRPanel: la app abre sin conexion (crear y escanear).
 // La API y las redirecciones /r/ van siempre a la red.
-const CACHE = "qrpanel-v4";
+const CACHE = "qrpanel-v5";
 const SHELL = ["/", "/static/app.css?v=3", "/static/js/app.js?v=3", "/static/js/qr.js", "/static/js/content.js",
   "/static/js/store.js", "/static/js/presets.js", "/static/js/zip.js", "/static/js/pdf.js", "/static/js/share.js", "/static/js/ui.js", "/static/vendor/qrcode.js",
   "/static/vendor/jsQR.min.js", "/static/icons/icon.svg", "/static/icons/icon-192.png", "/manifest.webmanifest"];

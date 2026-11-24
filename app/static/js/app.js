@@ -675,6 +675,7 @@ function viewCreate(v, arg) {
       const i = S.qrs.findIndex((x) => x.id === saved.id);
       if (i >= 0) S.qrs[i] = saved; else S.qrs.unshift(saved);
       const wasNew = !E.id;
+      if (saved.share_url) uploadShareImage(saved);
       E.has_pin = !!saved.has_pin; E.pin = ""; E.pinOn = undefined; if ($("#pin", v)) $("#pin", v).value = "";
       E.id = saved.id; E.code = saved.code || E.code; E.short_url = saved.short_url; E.content = saved.content; E.name = saved.name;
       $("#name", v).value = E.name;
@@ -868,9 +869,16 @@ function qrMenu(anchor, q, redraw) {
   menu(anchor, items);
 }
 
+/** Sube la imagen del QR para que el enlace compartido salga con su foto en WhatsApp/Telegram. */
+async function uploadShareImage(q) {
+  try { const png = await exportQR(q, "png", 800); await S.store.shareImage?.(q.id, png); return png; } catch { return null; }
+}
+const canShareFiles = () => !!(APP || navigator.canShare?.({ files: [new File([new Blob(["x"], { type: "image/png" })], "q.png", { type: "image/png" })] }));
+
 async function shareDlg(q, redraw) {
   try { if (!q.share_url) { Object.assign(q, await S.store.share(q.id)); redraw?.(); } }
   catch (e) { return toast(e.message, "bad"); }
+  const imgP = uploadShareImage(q);
   const r = await dialog({
     title: "Compartir «" + q.name + "»",
     body: `<div class="steps" style="gap:12px"><div class="small muted">Cualquiera con este enlace podrá ver el QR y descargarlo en PNG, SVG o PDF, sin necesitar cuenta.</div>
@@ -885,6 +893,13 @@ async function shareDlg(q, redraw) {
       w.querySelector("#shcopy").onclick = async () => { await navigator.clipboard.writeText(q.share_url); toast("Enlace copiado"); };
       w.querySelector("#shurl").onclick = (e) => e.target.select();
       w.querySelector("#shnat")?.addEventListener("click", () => shareText(q.name + " " + q.share_url, q.name));
+      // En el móvil (y en la app) se manda la imagen del QR con el enlace; en el PC, el enlace
+      // con su vista previa (la imagen del QR sale gracias a og:image).
+      if (canShareFiles()) for (const id of ["#shwa", "#shtg"]) w.querySelector(id).addEventListener("click", async (e) => {
+        e.preventDefault();
+        const png = (await imgP) || (await exportQR(q, "png", 800));
+        try { await shareFile(png, `${slug(q.name)}.png`, `${q.name}\n${q.share_url}`); } catch { toast("No se pudo compartir", "bad"); }
+      });
     },
   });
   if (r === "off") { Object.assign(q, await S.store.unshare(q.id)); redraw?.(); toast("Ya no se comparte. El enlace ha dejado de funcionar"); }

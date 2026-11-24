@@ -106,6 +106,7 @@ def set_setting(key: str, value: str):
 def init():
     conn().executescript(SCHEMA)
     cols = {r["name"] for r in q("PRAGMA table_info(qrs)")}
+    run("CREATE TABLE IF NOT EXISTS share_images(qr_id INTEGER PRIMARY KEY, png BLOB NOT NULL, updated REAL)")
     if "pin" not in cols:  # PIN para abrir un QR dinamico (guardado con hash)
         run("ALTER TABLE qrs ADD COLUMN pin TEXT")
     if "share" not in cols:  # enlace publico para compartir un QR

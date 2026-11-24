@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import parse_qs
 
 from fastapi import FastAPI, HTTPException, Request, Depends
-from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -322,6 +322,7 @@ def patch_qr(qid: int, b: QRPatch, request: Request, u=Depends(current_user)):
 def delete_qr(qid: int, u=Depends(current_user)):
     _own(qid, u)
     db.run("DELETE FROM scans WHERE qr_id=?", qid)
+    db.run("DELETE FROM share_images WHERE qr_id=?", qid)
     db.run("DELETE FROM qrs WHERE id=?", qid)
     return {"ok": True}
 
@@ -333,6 +334,23 @@ def share_on(qid: int, request: Request, u=Depends(current_user)):
     if not r["share"]:
         db.run("UPDATE qrs SET share=? WHERE id=?", secrets.token_urlsafe(12), qid)
     return _row(db.q1("SELECT * FROM qrs WHERE id=?", qid), public_base(request))
+
+
+MAX_SHARE_PNG = 900_000
+
+
+@app.put("/api/qrs/{qid}/image")
+async def share_image(qid: int, request: Request, u=Depends(current_user)):
+    """Imagen PNG del QR, para que el enlace compartido salga con su foto en WhatsApp/Telegram."""
+    _own(qid, u)
+    data = await request.body()
+    if len(data) > MAX_SHARE_PNG:
+        raise HTTPException(413, "La imagen es demasiado grande")
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise HTTPException(400, "Tiene que ser una imagen PNG")
+    db.run("INSERT INTO share_images(qr_id,png,updated) VALUES(?,?,?) "
+           "ON CONFLICT(qr_id) DO UPDATE SET png=excluded.png, updated=excluded.updated", qid, data, time.time())
+    return {"ok": True}
 
 
 @app.delete("/api/qrs/{qid}/share")
@@ -356,9 +374,32 @@ def share_get(token: str):
             "owner": r["username"], "dynamic": bool(r["dynamic"]), "updated": r["updated"], "brand": brand()}
 
 
+@app.get("/s/{token}/qr.png")
+def share_png(token: str):
+    r = db.q1("SELECT q.id FROM qrs q WHERE q.share=?", token) if len(token) >= 10 else None
+    img = db.q1("SELECT png, updated FROM share_images WHERE qr_id=?", r["id"]) if r else None
+    if not img:
+        return FileResponse(STATIC / "icons" / "icon-512.png", media_type="image/png")
+    return Response(img["png"], media_type="image/png", headers={"Cache-Control": "public, max-age=300"})
+
+
 @app.get("/s/{token}")
-def share_page(token: str):
-    return FileResponse(STATIC / "share.html", headers={"Cache-Control": "no-cache"})
+def share_page(token: str, request: Request):
+    html = (STATIC / "share.html").read_text(encoding="utf-8")
+    r = db.q1("SELECT q.id, q.name, q.updated FROM qrs q WHERE q.share=?", token) if len(token) >= 10 else None
+    if r:
+        # vista previa al pegar el enlace en WhatsApp, Telegram, correo...
+        base = public_base(request)
+        name = escape(r["name"] or "Código QR")
+        img = f"{base}/s/{escape(token)}/qr.png?v={int(r['updated'] or 0)}"
+        meta = (f'<meta property="og:type" content="website">'
+                f'<meta property="og:title" content="{name}">'
+                f'<meta property="og:description" content="Código QR compartido con {escape(brand()["name"])}. Ábrelo para verlo y descargarlo.">'
+                f'<meta property="og:image" content="{img}"><meta property="og:image:type" content="image/png">'
+                f'<meta property="og:url" content="{base}/s/{escape(token)}">'
+                f'<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{img}">')
+        html = html.replace("<title>Código QR compartido · QRPanel</title>", f"<title>{name} · Código QR</title>{meta}", 1)
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 def _days(n: int) -> list[str]:
