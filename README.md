@@ -20,7 +20,7 @@ de memoria.
   elegante, rombo, estrella, barras y líneas), 6 marcos y 7 centros para los "ojos", colores
   sólidos o con degradado lineal o radial, fondo de color, degradado o transparente, y
   esquinas redondeadas.
-- **Logos:** sube tu imagen (arrastrar, pegar con Ctrl+V o elegir), usa uno de los 16
+- **Logos:** sube tu imagen (arrastrar, pegar con Ctrl+V o elegir), usa uno de los 17
   iconos rápidos, y ajusta tamaño, espacio libre, fondo y redondeo. Tus logos se guardan
   para volver a usarlos.
 - **Marcos con texto:** tarjeta, cinta arriba, bocadillo, esquinas y entrada, con tu texto,
@@ -65,9 +65,18 @@ de memoria.
 
 Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 
+> 📖 **[Guía paso a paso con capturas](docs/GUIA.md)**: todo lo que se puede hacer, pantalla a pantalla.
+
 ![Crear un QR](docs/capturas/crear.png)
 
-![Estadísticas de un QR dinámico](docs/capturas/estadisticas-qr.png)
+| | |
+|---|---|
+| ![Imprimir en 3D](docs/capturas/3d.png) | ![QR para mascotas](docs/capturas/mascota.png) |
+| **Imprimir en 3D**, con vista previa | **QR para tu mascota** |
+| ![Estadísticas de un QR dinámico](docs/capturas/estadisticas-qr.png) | ![Caducidad y PIN](docs/capturas/dinamico.png) |
+| **Estadísticas** de cada QR dinámico | **Caducidad y PIN** |
+
+![En el móvil y en la app de Android](docs/capturas/movil.png)
 
 <details>
 <summary><b>Más capturas</b></summary>
@@ -80,12 +89,15 @@ Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 | **Colores y degradados** | **Estadísticas** de todos tus QR |
 | ![Escáner](docs/capturas/escanear.png) | ![Por lotes](docs/capturas/lotes.png) |
 | **Escáner** con cámara o imagen | **Por lotes**: muchos QR de golpe |
-| <img src="docs/capturas/movil.png" alt="En el móvil"> | <img src="docs/capturas/compartido.png" width="300" alt="Página para compartir"> |
-| **En el móvil** | **Página pública** para compartir un QR |
-| ![Entrar](docs/capturas/entrar.png) | |
-| **Pantalla de entrada** | |
+| ![Ajustes](docs/capturas/ajustes.png) | ![Entrar](docs/capturas/entrar.png) |
+| **Ajustes**: dirección pública, marca y usuarios | **Pantalla de entrada** |
+| <img src="docs/capturas/mascota-ficha.png" width="300" alt="Ficha de la mascota"> | <img src="docs/capturas/compartido.png" width="300" alt="Página para compartir"> <img src="docs/capturas/pin.png" width="300" alt="Página del PIN"> |
+| **Ficha de la mascota** que ve quien la encuentra | **Página pública** de un QR compartido y **página del PIN** |
 
 </details>
+
+**Material gráfico:** portadas para redes, imagen para GitHub, icono y avatar en
+[`docs/promo/`](docs/promo/) (lista completa en la [guía](docs/GUIA.md#16-material-gráfico-portadas-icono-y-avatar)).
 
 ---
 

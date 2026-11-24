@@ -728,6 +728,7 @@ def _pet_page(r) -> HTMLResponse:
     photo = f.get("photo") or ""
     photo_html = (f'<img class="photo" src="{escape(photo)}" alt="Foto de {name}">' if PHOTO_RE.match(photo)
                   else '<div class="photo none">🐾</div>')
+    f["sex"] = {"macho": "Macho", "hembra": "Hembra"}.get(f.get("sex"), "")
     rows = [(lbl, e(k)) for k, lbl in (("breed", "Raza"), ("color", "Color / señas"), ("sex", "Sexo"), ("age", "Edad"),
                                          ("chip", "Microchip"), ("vet", "Veterinario"), ("zone", "Vive en"))]
     info = "".join(f"<dt>{lbl}</dt><dd>{v}</dd>" for lbl, v in rows if v)
