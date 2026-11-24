@@ -1,0 +1,11 @@
+Bibliotecas de terceros incluidas en QRPanel
+============================================
+
+qrcode.js — QR Code Generator for JavaScript 2.0.4
+Copyright (c) 2009 Kazuhiko Arase. Licencia MIT.
+https://github.com/kazuhikoarase/qrcode-generator
+"QR Code" es una marca registrada de DENSO WAVE INCORPORATED.
+
+jsQR.min.js — jsQR 1.4.0 (minificado, sin cambios en el código)
+Copyright (c) Cosmo Wolfe. Licencia Apache 2.0.
+https://github.com/cozmo/jsQR  ·  https://www.apache.org/licenses/LICENSE-2.0

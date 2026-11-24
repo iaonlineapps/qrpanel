@@ -1,0 +1,24 @@
+services:
+  qr-panel:
+    build: .
+    image: qr-panel:latest
+    container_name: qr-panel
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    ports:
+      - "${PORT:-8091}:8091"
+    environment:
+      - TZ=${TZ:-Europe/Madrid}
+      - ADMIN_USER=${ADMIN_USER:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - ALLOW_REGISTER=${ALLOW_REGISTER:-1}
+      - PUBLIC_URL=${PUBLIC_URL:-}
+    volumes:
+      # La base de datos (QR, logos, plantillas, lecturas y usuarios) va en config/
+      - ${DATA_DIR:-./data}:/data
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

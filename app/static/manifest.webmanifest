@@ -1,0 +1,24 @@
+{
+  "name": "QRPanel",
+  "short_name": "QRPanel",
+  "description": "Tu propio generador de códigos QR",
+  "lang": "es",
+  "id": "/",
+  "start_url": "/#/crear",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0c13",
+  "theme_color": "#6d28d9",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "/static/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+    {"src": "/static/icons/icon.svg", "sizes": "any", "type": "image/svg+xml"}
+  ],
+  "shortcuts": [
+    {"name": "Crear QR", "url": "/#/crear", "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192"}]},
+    {"name": "Escanear", "url": "/#/escanear", "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192"}]},
+    {"name": "Biblioteca", "url": "/#/biblioteca", "icons": [{"src": "/static/icons/icon-192.png", "sizes": "192x192"}]}
+  ]
+}
