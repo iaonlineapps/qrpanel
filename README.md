@@ -191,13 +191,19 @@ carpeta (o usar **Ajustes → Copia de seguridad → Exportar**).
 
 ## 4. Actualizar
 
+Entra por SSH en el servidor y pega esta línea. Sirve desde cualquier carpeta:
+
 ```bash
-cd qrpanel
-git pull
-docker compose up -d --build
+curl -fsSL https://raw.githubusercontent.com/pctecnikk/qrpanel/main/update.sh | bash
 ```
 
-Tus QR no se tocan: están en `DATA_DIR`, no en la carpeta de la app.
+Busca dónde está instalado QRPanel, baja el código nuevo, reconstruye, arranca y te dice la
+versión que tenías y la que tienes ahora. Si ya estás en la carpeta de QRPanel, también vale
+`./update.sh`.
+
+Tus datos no se tocan: están en `DATA_DIR`, y tampoco se cambian tu `.env` ni tu
+`docker-compose.yaml`. Si lo instalaste con la imagen ya hecha (CasaOS, Runtipi o
+`image: ghcr.io/...`), el mismo comando baja la imagen nueva.
 
 ## 5. App para Android (APK)
 
