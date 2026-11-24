@@ -4,6 +4,18 @@ La versión de la web está en [`app/VERSION`](app/VERSION) y se ve en **Ajustes
 La app de Android tiene su propio número y sus novedades en
 [`android/src/main/res/raw/novedades.md`](android/src/main/res/raw/novedades.md).
 
+## 1.1.0
+
+- **Imprimir en 3D:** descarga el QR como modelo 3D en **3MF de dos colores**, **STL** o dos
+  STL (base y módulos). Vista previa 3D que se gira y se acerca, y que cambia al momento al
+  tocar el tamaño, el grosor de la base, la altura de los módulos, el borde, las esquinas
+  redondeadas o la anilla de llavero. Avisa si los módulos son demasiado pequeños y dice a
+  qué altura cambiar de filamento.
+- **Compartir con imagen:** por WhatsApp y Telegram se manda la imagen del QR (en el móvil y
+  en la app), y el enlace compartido sale con la imagen del QR como vista previa.
+- **Versiones a la vista:** abajo de cada página y en tu menú de usuario se ve la versión de
+  la web y, dentro de la app, la de la app.
+
 ## 1.0.0
 
 Primera versión.

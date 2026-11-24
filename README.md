@@ -46,6 +46,9 @@ de memoria.
   un ZIP o guardados en la biblioteca.
 - **Escáner:** lee QR con la cámara o desde una foto o captura, reconoce WiFi, contactos,
   eventos… y con un botón lo vuelve a crear con tu diseño.
+- **Imprimir en 3D:** descarga el QR en **3MF de dos colores** o **STL**, con vista previa 3D
+  que se gira y cambia al momento. Eliges tamaño, grosor, altura de los módulos, borde,
+  esquinas redondeadas y anilla de llavero.
 - **Compartir con un enlace:** cada QR puede tener su página pública (`/s/…`) donde
   cualquiera lo ve y lo descarga en PNG, SVG, JPG o PDF sin cuenta. La quitas cuando quieras.
 - **Tu marca:** el administrador pone el nombre y el logo de su negocio o su familia, y se

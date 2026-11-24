@@ -4,6 +4,8 @@ import { detect, LocalStore } from "./store.js";
 import { PRESETS, surprise } from "./presets.js";
 import { makeZip } from "./zip.js";
 import { makePdf } from "./pdf.js";
+import { build as build3d, toSTL, to3MF, toSTLParts, DEFAULT_3D } from "./model3d.js";
+import { viewer } from "./viewer3d.js";
 import { icon, quickLogo, $, $$, esc, debounce, h, toast, dialog, confirmDlg, promptDlg, menu, confetti, fmtDate, ago, fmtN, download, slug, readImage, fileToCanvas, APP, appVersion, shareFile, shareText, canShareText } from "./ui.js";
 
 const S = { store: LocalStore, info: null, me: null, qrs: [], logos: [], templates: [], loaded: false };
@@ -107,6 +109,11 @@ function bgFx(cv) {
   })();
 }
 
+// --- versiones (web y app de Android), para ver de un vistazo si van acordes
+const webVersion = () => S.info?.version || S.me?.version || "";
+const versionsText = () => `Web ${webVersion()}` + (APP ? ` · App ${appVersion()}` : "");
+const versionsHtml = () => `QRPanel · <b>Web ${esc(webVersion())}</b>` + (APP ? ` · <b>App ${esc(appVersion())}</b>` : ` · <a href="https://github.com/pctecnikk/qrpanel/releases?q=android&expanded=true" target="_blank" rel="noopener">App Android</a>`);
+
 // --- esqueleto y rutas -----------------------------------------------------------------
 const NAV = [["crear", "Crear", "plus"], ["biblioteca", "Biblioteca", "library"], ["escanear", "Escanear", "scan"], ["lotes", "Por lotes", "layers"], ["estadisticas", "Estadísticas", "chart"], ["ajustes", "Ajustes", "gear"]];
 function shell() {
@@ -122,6 +129,7 @@ function shell() {
     </div>
   </header>
   <main id="view"></main>
+  <footer class="ver-foot">${versionsHtml()}</footer>
   <nav class="tabbar">${NAV.filter(([k]) => k !== "lotes").map(([k, t, i]) => `<a href="#/${k}" data-r="${k}">${icon(i)}${t}</a>`).join("")}</nav>`;
   $("#theme").onclick = () => {
     const now = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
@@ -132,6 +140,8 @@ function shell() {
   $("#me")?.addEventListener("click", (e) => menu(e.currentTarget, [
     { icon: "user", label: S.me.username + (S.me.is_admin ? " · admin" : ""), run: () => (location.hash = "#/ajustes") },
     { icon: "key", label: "Cambiar contraseña", run: changePassword },
+    "-",
+    { icon: "info", label: versionsText(), run: () => (location.hash = "#/ajustes") },
     "-",
     { icon: "logout", label: "Salir", danger: true, run: async () => { await S.store.logout(); location.reload(); } },
   ]));
@@ -301,6 +311,7 @@ function viewCreate(v, arg) {
           <button class="btn sm ghost" id="copytxt">${icon("text", "sm")}Copiar texto</button>
           ${E.id && S.store.mode === "server" ? `<button class="btn sm ghost" id="shlink">${icon("link", "sm")}Enlace</button>` : ""}
         </div>
+        <button class="btn full p3d-btn" id="p3d">${icon("cube")}Imprimir en 3D <span class="small muted">STL · 3MF</span></button>
       </div>
     </aside>
   </div>`;
@@ -695,6 +706,10 @@ function viewCreate(v, arg) {
     download(blob, `${slug(E.name || autoName())}.${EXT[fmt]}`);
     confetti(r.left + r.width / 2, r.top, 40);
   };
+  $("#p3d", v).onclick = () => {
+    if (missing(E.kind, E.fields[E.kind]).length) return toast("Escribe primero el contenido del QR", "bad");
+    print3dDlg({ name: E.name || autoName(), content: content(), design: E.design });
+  };
   $("#copy", v).onclick = async () => {
     try {
       const blob = await exportQR({ content: content(), design: E.design }, "png", 1024);
@@ -840,6 +855,7 @@ function qrMenu(anchor, q, redraw) {
     { icon: "download", label: "Descargar SVG", run: async () => download(await exportQR(q, "svg"), `${slug(q.name)}.svg`) },
     { icon: "download", label: "Descargar JPG", run: async () => download(await exportQR(q, "jpg", 1024), `${slug(q.name)}.jpg`) },
     { icon: "download", label: "Descargar PDF", run: async () => download(await exportQR(q, "pdf", 2048), `${slug(q.name)}.pdf`) },
+    { icon: "cube", label: "Imprimir en 3D (STL / 3MF)", run: () => print3dDlg(q) },
     { icon: "share", label: "Compartir imagen (WhatsApp, Telegram…)", run: async () => {
       const blob = await exportQR(q, "png", 1024), name = `${slug(q.name)}.png`;
       try { if (!(await shareFile(blob, name, q.name))) { download(blob, name); toast("Este navegador no comparte archivos: lo he descargado"); } } catch { toast("No se pudo compartir", "bad"); }
@@ -867,6 +883,92 @@ function qrMenu(anchor, q, redraw) {
     await S.store.remove(q.id); S.qrs = S.qrs.filter((x) => x.id !== q.id); redraw(); toast("Eliminado");
   } });
   menu(anchor, items);
+}
+
+// --- imprimir en 3D ------------------------------------------------------------------
+async function print3dDlg(q) {
+  let o = { ...DEFAULT_3D };
+  try { Object.assign(o, JSON.parse(localStorage.getItem("qp-3d") || "{}")); } catch { /* sin preferencias */ }
+  const ecc = mergeDesign(q.design).ecc || "M";
+  const num = (k, label, min, max, step, unit) => `<label class="r3"><span>${label}</span><input type="range" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${o[k]}"><input type="number" class="input" data-k="${k}" min="${min}" max="${max}" step="${step}" value="${o[k]}"><em>${unit}</em></label>`;
+  let model = null, view = null;
+  await dialog({
+    title: "Imprimir en 3D · " + q.name, wide: true,
+    body: `<div class="p3d">
+      <div class="p3d-view"><canvas id="c3d" aria-label="Vista previa 3D. Arrastra para girar, rueda o pellizco para acercar"></canvas>
+        <div class="p3d-tools"><button class="btn sm" data-v="spin">${icon("flip", "sm")}Girar</button><button class="btn sm" data-v="top">${icon("scan", "sm")}Desde arriba</button><button class="btn sm" data-v="reset">${icon("eye", "sm")}Centrar</button></div>
+        <div class="small faint p3d-hint">Arrastra para girar · rueda o pellizco para acercar · doble clic para centrar. Desde arriba puedes escanearlo con el móvil.</div></div>
+      <div class="p3d-form">
+        ${num("size", "Tamaño (lado)", 20, 150, 1, "mm")}
+        ${num("base", "Grosor de la base", 0.6, 6, 0.2, "mm")}
+        ${num("height", "Altura de los módulos", 0.4, 4, 0.2, "mm")}
+        ${num("margin", "Borde blanco", 0, 6, 1, "mód.")}
+        ${num("radius", "Esquinas redondeadas", 0, 15, 0.5, "mm")}
+        <label class="switch"><input type="checkbox" data-k="keychain" ${o.keychain ? "checked" : ""}><i></i><span>Anilla para llavero</span></label>
+        <div class="${o.keychain ? "" : "hidden"}" id="holebox">${num("hole", "Agujero", 3, 8, 0.5, "mm")}</div>
+        <div class="row"><label class="field half"><span>Color base</span><input type="color" data-k="baseColor" value="${esc(o.baseColor)}"></label><label class="field half"><span>Color módulos</span><input type="color" data-k="modColor" value="${esc(o.modColor)}"></label></div>
+        <label class="field"><span>Archivo</span><select data-k="format">
+          <option value="3mf" ${o.format === "3mf" ? "selected" : ""}>3MF · dos colores (Bambu, Prusa, Orca, Cura)</option>
+          <option value="stl" ${o.format === "stl" ? "selected" : ""}>STL · una sola pieza</option>
+          <option value="zip" ${o.format === "zip" ? "selected" : ""}>2 STL (base y módulos) en un ZIP</option></select></label>
+        <div class="p3d-info" id="i3d"></div>
+        <div class="row"><button class="btn ghost sm" id="r3d">Valores por defecto</button></div>
+      </div></div>`,
+    buttons: [["Cerrar", null], [`Descargar`, async () => {
+      const name = slug(q.name).replace(/-?3d$/, "") + "-3d";
+      if (o.format === "stl") download(toSTL(model), name + ".stl");
+      else if (o.format === "zip") download(await toSTLParts(model, name), name + "-stl.zip");
+      else download(await to3MF(model, q.name), name + ".3mf");
+      toast("Modelo 3D descargado. Ábrelo en tu programa de impresión (laminador)");
+      return true;
+    }, "primary"]],
+    onOpen: (w) => {
+      const cv = w.querySelector("#c3d");
+      view = viewer(cv);
+      if (!view) cv.replaceWith(h(`<div class="empty small muted">Tu navegador no puede mostrar la vista 3D, pero el archivo se descarga igual.</div>`));
+      const fmt = (v) => String(+(+v).toFixed(2)).replace(".", ",");
+      const redraw = () => {
+        model = build3d(q.content || " ", ecc, o);
+        view?.setModel(model);
+        const i = model.info, small = i.module < 1.2;
+        w.querySelector("#i3d").innerHTML = `
+          <div><b>${fmt(i.width)} × ${fmt(i.depth)} × ${fmt(i.height)} mm</b> · QR de ${i.n}×${i.n} módulos</div>
+          <div>Cada módulo mide <b>${fmt(i.module)} mm</b> · ${fmtN(i.tris)} triángulos</div>
+          ${small ? `<div class="warn">${icon("alert", "sm")} Módulos muy pequeños para una boquilla de 0,4 mm. Sube el tamaño a ${Math.ceil(o.size * 1.2 / i.module)} mm o más, o acorta el contenido (un QR dinámico tiene menos módulos).</div>` : `<div class="ok">${icon("check", "sm")} Buen tamaño para imprimir con boquilla de 0,4 mm.</div>`}
+          <div class="faint">Con un solo color: imprime en ${esc(o.baseColor === "#ffffff" ? "blanco" : "el color de la base")} y pon un <b>cambio de filamento a ${fmt(i.colorChange)} mm</b> de altura para los módulos.</div>
+          <div class="faint">En 3D los módulos van cuadrados y sin logo, para que se lea siempre.</div>`;
+      };
+      const set = (k, val, src) => {
+        o[k] = val;
+        w.querySelectorAll(`[data-k="${k}"]`).forEach((x) => { if (x !== src && x.type !== "checkbox") x.value = val; });
+        if (k === "keychain") w.querySelector("#holebox").classList.toggle("hidden", !val);
+        localStorage.setItem("qp-3d", JSON.stringify(o));
+        if (k !== "format") redrawSoon();
+      };
+      let t = 0; const redrawSoon = () => { clearTimeout(t); t = setTimeout(redraw, 30); };
+      w.querySelector(".p3d-form").addEventListener("input", (e) => {
+        const k = e.target.dataset.k; if (!k) return;
+        if (e.target.type === "checkbox") return set(k, e.target.checked, e.target);
+        if (e.target.type === "range" || e.target.type === "number") {
+          const n = parseFloat(e.target.value); if (!Number.isFinite(n)) return;
+          const v = Math.min(+e.target.max, Math.max(+e.target.min, n)); return set(k, v, e.target);
+        }
+        set(k, e.target.value, e.target);
+      });
+      w.querySelector("#r3d").onclick = () => {
+        o = { ...DEFAULT_3D, format: o.format };
+        w.querySelectorAll("[data-k]").forEach((x) => { if (x.type === "checkbox") x.checked = !!o[x.dataset.k]; else x.value = o[x.dataset.k]; });
+        w.querySelector("#holebox").classList.toggle("hidden", !o.keychain);
+        localStorage.setItem("qp-3d", JSON.stringify(o)); redraw();
+      };
+      w.querySelector(".p3d-tools").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-v]"); if (!b || !view) return;
+        if (b.dataset.v === "spin") view.spin(); else if (b.dataset.v === "top") view.top(); else view.reset();
+      });
+      redraw();
+    },
+  });
+  view?.destroy();
 }
 
 /** Sube la imagen del QR para que el enlace compartido salga con su foto en WhatsApp/Telegram. */
