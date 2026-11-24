@@ -46,6 +46,7 @@ const P = {
   eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
   eyeoff: "M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.3 4.2M6.6 6.6C3.6 8.5 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2",
   logout: "M9 21H5V3h4M16 17l5-5-5-5M21 12H9",
+  lock: "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4",
   key: "M15 7a4 4 0 1 1-3.9 5H9v2H7v2H4v-3l6.1-6.1A4 4 0 0 1 15 7zM16 8h.01",
   users: "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21a7 7 0 0 1 14 0M16 3.1a4 4 0 0 1 0 7.8M18 14a7 7 0 0 1 4 7",
   globe: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20",
@@ -191,12 +192,36 @@ export function ago(ts) {
 }
 export const fmtN = (n) => Number(n || 0).toLocaleString("es-ES");
 
-export function download(blob, name) {
+/** Puente con la app de Android (solo existe dentro de la app). */
+export const APP = typeof window !== "undefined" && window.QRPanelAndroid ? window.QRPanelAndroid : null;
+export const appVersion = () => { try { return APP ? APP.version() : ""; } catch { return ""; } };
+const b64 = (blob) => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1] || ""); r.onerror = ko; r.readAsDataURL(blob); });
+
+export async function download(blob, name) {
+  if (APP) { APP.saveFile(await b64(blob), name, blob.type || "application/octet-stream"); return; }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
+/** Comparte un archivo (imagen del QR) con WhatsApp, Telegram, correo... */
+export async function shareFile(blob, name, text = "") {
+  if (APP) { APP.shareFile(await b64(blob), name, blob.type || "image/png", text || ""); return true; }
+  const file = new File([blob], name, { type: blob.type || "image/png" });
+  if (navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name, text: text || undefined }); } catch (e) { if (e.name !== "AbortError") throw e; }
+    return true;
+  }
+  return false;
+}
+/** Comparte un texto o enlace. */
+export async function shareText(text, title = "") {
+  if (APP) { APP.shareText(text); return true; }
+  if (navigator.share) { try { await navigator.share({ title: title || undefined, text }); } catch { /* cancelado */ } return true; }
+  return false;
+}
+export const canShareText = () => !!(APP || navigator.share);
+
 export const slug = (s) => (String(s || "qr").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase().slice(0, 60) || "qr");
 
 /** Lee un archivo de imagen y lo reduce (max px) a data URL PNG; los SVG se guardan tal cual. */

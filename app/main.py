@@ -2,6 +2,7 @@ import asyncio, hashlib, json, re, secrets, time
 from contextlib import asynccontextmanager
 from html import escape
 from pathlib import Path
+from urllib.parse import parse_qs
 
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, RedirectResponse
@@ -186,6 +187,29 @@ class QRIn(BaseModel):
     active: bool = True
     expires: float | None = None
     max_scans: int | None = Field(None, ge=0, le=10_000_000)
+    # PIN para abrir el QR: None = no cambiar, "" = quitarlo, texto = ponerlo
+    pin: str | None = Field(None, max_length=32)
+    pin_hash: str | None = Field(None, max_length=200)  # solo al importar una copia
+
+
+PIN_RE = re.compile(r"^[A-Za-z0-9]{4,32}$")
+PIN_HASH_RE = re.compile(r"^pbkdf2\$(\d{4,7})\$[0-9a-f]{32}\$[0-9a-f]{64}$")
+
+
+def _pin_value(b: QRIn, old: str | None) -> str | None:
+    if not b.dynamic:
+        return old
+    if b.pin is None:
+        m = PIN_HASH_RE.match(b.pin_hash or "")
+        if m and 1000 <= int(m.group(1)) <= 1_000_000:  # que una copia no traiga un hash imposible
+            return b.pin_hash
+        return old
+    p = b.pin.strip()
+    if not p:
+        return None
+    if not PIN_RE.match(p):
+        raise HTTPException(400, "El PIN debe tener de 4 a 32 letras o números")
+    return db.hash_pw(p)
 
 
 def _new_code() -> str:
@@ -202,6 +226,7 @@ def _row(r, base: str) -> dict:
     d["design"] = json.loads(d["design"] or "{}")
     d["favorite"], d["dynamic"], d["active"] = bool(d["favorite"]), bool(d["dynamic"]), bool(d["active"])
     d.pop("user_id", None)
+    d["has_pin"] = bool(d.pop("pin", None))
     d["short_url"] = f"{base}/r/{d['code']}" if d["dynamic"] and d["code"] else None
     d["share_url"] = f"{base}/s/{d['share']}" if d.get("share") else None
     return d
@@ -242,10 +267,10 @@ def create_qr(b: QRIn, request: Request, u=Depends(current_user)):
         b.content = f"{public_base(request)}/r/{code}"
     now = time.time()
     cur = db.run("INSERT INTO qrs(user_id,name,kind,fields,content,design,folder,favorite,dynamic,code,target,"
-                 "active,expires,max_scans,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                 "active,expires,max_scans,pin,created,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                  u["id"], b.name.strip() or "Sin nombre", b.kind, json.dumps(b.fields), b.content,
                  json.dumps(b.design), b.folder.strip(), int(b.favorite), int(b.dynamic), code, target,
-                 int(b.active), b.expires, b.max_scans or None, now, now)
+                 int(b.active), b.expires, b.max_scans or None, _pin_value(b, None), now, now)
     r = db.q1("SELECT * FROM qrs WHERE id=?", cur.lastrowid)
     return _row(r, public_base(request))
 
@@ -270,10 +295,10 @@ def update_qr(qid: int, b: QRIn, request: Request, u=Depends(current_user)):
     else:
         code = old["code"]  # se guarda por si se vuelve a hacer dinamico
     db.run("UPDATE qrs SET name=?,kind=?,fields=?,content=?,design=?,folder=?,favorite=?,dynamic=?,code=?,"
-           "target=?,active=?,expires=?,max_scans=?,updated=? WHERE id=?",
+           "target=?,active=?,expires=?,max_scans=?,pin=?,updated=? WHERE id=?",
            b.name.strip() or "Sin nombre", b.kind, json.dumps(b.fields), b.content, json.dumps(b.design),
            b.folder.strip(), int(b.favorite), int(b.dynamic), code, target if b.dynamic else old["target"],
-           int(b.active), b.expires, b.max_scans or None, time.time(), qid)
+           int(b.active), b.expires, b.max_scans or None, _pin_value(b, old["pin"]), time.time(), qid)
     return _row(db.q1("SELECT * FROM qrs WHERE id=?", qid), public_base(request))
 
 
@@ -452,8 +477,13 @@ def del_template(tid: int, u=Depends(current_user)):
 # --- copia de seguridad --------------------------------------------------------------
 @app.get("/api/export")
 def export(request: Request, u=Depends(current_user)):
+    pins = {r["id"]: r["pin"] for r in db.q("SELECT id, pin FROM qrs WHERE user_id=? AND pin IS NOT NULL", u["id"])}
+    qrs = list_qrs(request, u)
+    for x in qrs:
+        if x["id"] in pins:
+            x["pin_hash"] = pins[x["id"]]
     data = {"app": "qrpanel", "version": VERSION, "exported": time.time(),
-            "qrs": list_qrs(request, u), "logos": list_logos(u), "templates": list_templates(u)}
+            "qrs": qrs, "logos": list_logos(u), "templates": list_templates(u)}
     return JSONResponse(data, headers={"Content-Disposition": 'attachment; filename="qrpanel-copia.json"'})
 
 
@@ -481,7 +511,7 @@ def import_data(b: ImportIn, request: Request, u=Depends(current_user)):
             logo = design.get("logo") or {}
             if logo.get("id") is not None:
                 logo["id"] = logo_map.get(str(logo["id"]))
-            item = QRIn(**{k: x[k] for k in QRIn.model_fields if k in x and x[k] is not None})
+            item = QRIn(**{k: x[k] for k in QRIn.model_fields if k in x and x[k] is not None and k != "pin"})
             # los codigos cortos que ya existen en este servidor no se pisan
             if item.code and db.q1("SELECT id FROM qrs WHERE code=?", item.code):
                 item.code = None
@@ -635,6 +665,20 @@ def _ua_info(ua: str) -> tuple[str, str, str]:
     return device, os_, br
 
 
+def _pin_page(code: str, name: str, error: str = "", status: int = 200) -> HTMLResponse:
+    err = f'<p class="err">{escape(error)}</p>' if error else ""
+    html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>QR protegido</title><link rel="stylesheet" href="/static/redirect.css"></head><body><main>
+<img src="/static/icons/icon.svg" alt="" width="64" height="64"><h1>Este QR tiene PIN</h1>
+<p>Escribe el PIN que te han dado para continuar.</p>{err}
+<form method="post" action="/r/{escape(code)}" autocomplete="off">
+<input name="pin" type="password" inputmode="text" maxlength="32" required autofocus aria-label="PIN" placeholder="PIN">
+<button type="submit">Abrir</button></form>
+</main></body></html>"""
+    return HTMLResponse(html, status_code=status, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
+
 def _closed_page(title: str, text: str) -> HTMLResponse:
     html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(title)}</title>
@@ -644,18 +688,53 @@ def _closed_page(title: str, text: str) -> HTMLResponse:
     return HTMLResponse(html, status_code=410, headers={"Cache-Control": "no-store"})
 
 
-@app.get("/r/{code}")
-def go(code: str, request: Request):
+def _open(code: str):
+    """Devuelve (fila, None) si el QR se puede abrir, o (None, pagina de aviso)."""
     r = db.q1("SELECT * FROM qrs WHERE code=? AND dynamic=1", code)
     if not r:
-        return _closed_page("Este QR no existe", "Puede que lo hayan borrado. Pide uno nuevo a quien te lo dio.")
+        return None, _closed_page("Este QR no existe", "Puede que lo hayan borrado. Pide uno nuevo a quien te lo dio.")
     if not r["active"]:
-        return _closed_page("Este QR está en pausa", "Su dueño lo ha desactivado por ahora. Prueba más tarde.")
-    now = time.time()
-    if r["expires"] and now > r["expires"]:
-        return _closed_page("Este QR ha caducado", "Ya no lleva a ningún sitio.")
+        return None, _closed_page("Este QR está en pausa", "Su dueño lo ha desactivado por ahora. Prueba más tarde.")
+    if r["expires"] and time.time() > r["expires"]:
+        return None, _closed_page("Este QR ha caducado", "Ya no lleva a ningún sitio.")
     if r["max_scans"] and r["scans"] >= r["max_scans"]:
-        return _closed_page("Este QR ya no está disponible", "Ha llegado al número máximo de lecturas.")
+        return None, _closed_page("Este QR ya no está disponible", "Ha llegado al número máximo de lecturas.")
+    return r, None
+
+
+@app.get("/r/{code}")
+def go(code: str, request: Request):
+    r, page = _open(code)
+    if page:
+        return page
+    if r["pin"]:
+        return _pin_page(code, r["name"])
+    return _scan(r, request)
+
+
+@app.post("/r/{code}")
+async def go_pin(code: str, request: Request):
+    r, page = _open(code)
+    if page:
+        return page
+    if not r["pin"]:
+        return _scan(r, request)
+    ip = client_ip(request)
+    wait = max(limits.pin_ip.blocked((ip, code)), limits.pin_qr.blocked(code))
+    if wait:
+        return _pin_page(code, r["name"], f"Demasiados intentos. Espera {max(1, wait // 60)} minutos.", 429)
+    body = (await request.body())[:2000]
+    pin = (parse_qs(body.decode("utf-8", "replace")).get("pin") or [""])[0].strip()
+    if not pin or not db.check_pw(pin, r["pin"]):
+        limits.pin_ip.hit((ip, code)); limits.pin_qr.hit(code)
+        await asyncio.sleep(0.6)
+        return _pin_page(code, r["name"], "PIN incorrecto. Vuelve a probar.", 403)
+    limits.pin_ip.reset((ip, code))
+    return _scan(r, request, 303)
+
+
+def _scan(r, request: Request, status: int = 302):
+    now = time.time()
     ua = request.headers.get("user-agent", "")[:400]
     device, os_, br = _ua_info(ua)
     day = time.strftime("%Y-%m-%d", time.localtime(now))
@@ -663,7 +742,7 @@ def go(code: str, request: Request):
     db.run("INSERT INTO scans(qr_id,at,day,device,os,browser,visitor) VALUES(?,?,?,?,?,?,?)",
            r["id"], now, day, device, os_, br, visitor)
     db.run("UPDATE qrs SET scans=scans+1, last_scan=? WHERE id=?", now, r["id"])
-    return RedirectResponse(r["target"], status_code=302, headers={"Cache-Control": "no-store"})
+    return RedirectResponse(r["target"], status_code=status, headers={"Cache-Control": "no-store"})
 
 
 # --- web ------------------------------------------------------------------------

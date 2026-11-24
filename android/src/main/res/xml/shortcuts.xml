@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="crear" android:enabled="true" android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_create">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="io.github.pctecnikk.qrpanel"
+            android:targetClass="io.github.pctecnikk.qrpanel.MainActivity" android:data="qrpanel://crear" />
+    </shortcut>
+    <shortcut android:shortcutId="escanear" android:enabled="true" android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_scan">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="io.github.pctecnikk.qrpanel"
+            android:targetClass="io.github.pctecnikk.qrpanel.MainActivity" android:data="qrpanel://escanear" />
+    </shortcut>
+    <shortcut android:shortcutId="servidor" android:enabled="true" android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_server">
+        <intent android:action="android.intent.action.VIEW" android:targetPackage="io.github.pctecnikk.qrpanel"
+            android:targetClass="io.github.pctecnikk.qrpanel.MainActivity" android:data="qrpanel://servidor" />
+    </shortcut>
+</shortcuts>

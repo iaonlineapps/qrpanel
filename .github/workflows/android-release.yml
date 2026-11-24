@@ -1,0 +1,47 @@
+# Publica la app de Android como Release (etiqueta android-vX.Y) cada vez que cambia
+# android/dist/QRPanel.apk en main. La version sale de android/src/main/AndroidManifest.xml.
+# Usa la APK ya firmada, asi la clave de firma nunca tiene que estar en GitHub.
+name: Publicar app Android
+
+on:
+  push:
+    branches: [main]
+    paths: ["android/dist/QRPanel.apk"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Crear la Release con la APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(grep -o 'versionName="[^"]*"' android/src/main/AndroidManifest.xml | cut -d'"' -f2)
+          TAG="android-v$V"
+          {
+            echo "> ⚠️ **Primero necesitas tu propio servidor QRPanel instalado** (en una Raspberry Pi o cualquier Linux con Docker). La app solo sirve para entrar en él desde el móvil; sin servidor no hace nada. Cómo instalar el servidor: https://github.com/pctecnikk/qrpanel#2-instalar"
+            echo
+            echo "App de QRPanel para Android. Descarga **QRPanel.apk** aquí abajo (en *Assets*), ábrela en el móvil y toca **Instalar**. Si Android pregunta, permite instalar apps de este origen."
+            echo
+            echo "Si ya tienes una versión anterior, se instala encima sin perder nada."
+            echo
+            echo "## Novedades de la $V"
+            awk -v v="## Versión $V" '$0==v{f=1;next} /^## /{f=0} f' android/src/main/res/raw/novedades.md
+            echo
+            echo "Necesita Android 7 o más nuevo. La primera vez pide la dirección de tu servidor (en casa, por ejemplo \`192.168.1.x:8091\`; fuera de casa, tu dirección pública)."
+          } > notas.md
+          cat notas.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "La Release $TAG ya existe: se actualizan la APK y el texto"
+            gh release upload "$TAG" android/dist/QRPanel.apk --clobber
+            gh release edit "$TAG" --notes-file notas.md
+            exit 0
+          fi
+          gh release create "$TAG" android/dist/QRPanel.apk --target "$GITHUB_SHA" \
+            --title "App Android $V" --notes-file notas.md

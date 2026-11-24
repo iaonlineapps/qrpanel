@@ -4,7 +4,7 @@ import { detect, LocalStore } from "./store.js";
 import { PRESETS, surprise } from "./presets.js";
 import { makeZip } from "./zip.js";
 import { makePdf } from "./pdf.js";
-import { icon, quickLogo, $, $$, esc, debounce, h, toast, dialog, confirmDlg, promptDlg, menu, confetti, fmtDate, ago, fmtN, download, slug, readImage, fileToCanvas } from "./ui.js";
+import { icon, quickLogo, $, $$, esc, debounce, h, toast, dialog, confirmDlg, promptDlg, menu, confetti, fmtDate, ago, fmtN, download, slug, readImage, fileToCanvas, APP, appVersion, shareFile, shareText, canShareText } from "./ui.js";
 
 const S = { store: LocalStore, info: null, me: null, qrs: [], logos: [], templates: [], loaded: false };
 const app = $("#app");
@@ -193,7 +193,7 @@ function viewCreate(v, arg) {
   if (arg) {
     const q = S.qrs.find((x) => String(x.id) === arg);
     if (!q) { toast("Ese QR ya no existe", "bad"); location.hash = "#/biblioteca"; return; }
-    E = { id: q.id, name: q.name, kind: q.kind, fields: { [q.kind]: structuredClone(q.fields || {}) }, design: mergeDesign(q.design), dynamic: q.dynamic, code: q.code || "", active: q.active, expires: q.expires, max_scans: q.max_scans, folder: q.folder || "", favorite: q.favorite, short_url: q.short_url, content: q.content };
+    E = { id: q.id, name: q.name, kind: q.kind, fields: { [q.kind]: structuredClone(q.fields || {}) }, design: mergeDesign(q.design), dynamic: q.dynamic, code: q.code || "", active: q.active, expires: q.expires, max_scans: q.max_scans, has_pin: !!q.has_pin, folder: q.folder || "", favorite: q.favorite, short_url: q.short_url, content: q.content };
   } else if (!E || E.id) {
     E = newEditor();
   }
@@ -220,8 +220,14 @@ function viewCreate(v, arg) {
           <div id="dyn-opts" class="form hidden">
             <label class="field half"><span>Código corto</span><input id="code" maxlength="40" placeholder="abc123"></label>
             <label class="field half"><span>Estado</span><select id="active"><option value="1">Activo</option><option value="0">En pausa</option></select></label>
-            <label class="field half"><span>Caduca el (opcional)</span><input id="expires" type="date"></label>
-            <label class="field half"><span>Máximo de lecturas (opcional)</span><input id="maxs" type="number" min="0" placeholder="Sin límite"></label>
+            <div class="field"><span>Caducidad</span><div class="seg" id="expseg"><button type="button" data-v="no">No caduca</button><button type="button" data-v="date">En una fecha</button><button type="button" data-v="scans">Tras X lecturas</button></div></div>
+            <div class="field exp-date hidden" id="exp-date"><div class="row" style="flex-wrap:wrap"><input id="expires" type="date" style="flex:1;min-width:140px"><input id="exptime" type="time" style="width:110px">
+              <button type="button" class="btn sm ghost" data-plus="1">+1 día</button><button type="button" class="btn sm ghost" data-plus="7">+1 semana</button><button type="button" class="btn sm ghost" data-plus="30">+1 mes</button></div></div>
+            <label class="field hidden" id="exp-scans"><span>Deja de funcionar después de</span><div class="row"><input id="maxs" type="number" min="1" placeholder="100" style="flex:1"><span class="small muted">lecturas</span></div></label>
+            <div class="field small muted hidden" id="exp-info"></div>
+            <label class="switch field"><input type="checkbox" id="pinon"><i></i><span>${icon("lock", "sm")} Pedir un PIN para abrirlo</span></label>
+            <label class="field hidden" id="pinbox"><span>PIN (4 a 32 letras o números)</span><input id="pin" maxlength="32" autocomplete="new-password" inputmode="text" placeholder="1234"></label>
+            <div class="field small muted hidden" id="pin-info">Quien escanee el QR verá una página pidiendo el PIN antes de llegar al destino. Tras 5 fallos tendrá que esperar 15 minutos.</div>
             <div class="field small muted" id="dyn-url"></div>
           </div></div>` : `<div class="small muted">${icon("info", "sm")} Los QR dinámicos (con estadísticas) necesitan el servidor de QRPanel.</div>`}
       `)}
@@ -339,6 +345,7 @@ function viewCreate(v, arg) {
   $$(".type", v).forEach((b) => b.addEventListener("click", () => { E.kind = b.dataset.kind; drawForm(); refresh(); }));
 
   // --- dinamico
+  const until = (ts) => { const m = Math.round((ts * 1000 - Date.now()) / 60000); return m < 60 ? `dentro de ${Math.max(1, m)} min` : m < 1440 * 2 ? `dentro de ${Math.round(m / 60)} h` : `dentro de ${Math.round(m / 1440)} días`; };
   function updDyn() {
     const box = $("#dynbox", v); if (!box) return;
     const ok = !!TYPES[E.kind].dyn;
@@ -349,8 +356,22 @@ function viewCreate(v, arg) {
     if (E.dynamic && !E.code) E.code = randCode();
     $("#code", v).value = E.code || "";
     $("#active", v).value = E.active ? "1" : "0";
-    $("#expires", v).value = E.expires ? new Date(E.expires * 1000).toISOString().slice(0, 10) : "";
+    if (!E.expMode) E.expMode = E.expires ? "date" : E.max_scans ? "scans" : "no";
+    $$("#expseg button", v).forEach((b) => b.classList.toggle("on", b.dataset.v === E.expMode));
+    $("#exp-date", v).classList.toggle("hidden", E.expMode !== "date");
+    $("#exp-scans", v).classList.toggle("hidden", E.expMode !== "scans");
+    const ed = E.expires ? new Date(E.expires * 1000) : null, pad = (n) => String(n).padStart(2, "0");
+    $("#expires", v).value = ed ? `${ed.getFullYear()}-${pad(ed.getMonth() + 1)}-${pad(ed.getDate())}` : "";
+    $("#exptime", v).value = ed ? `${pad(ed.getHours())}:${pad(ed.getMinutes())}` : "23:59";
     $("#maxs", v).value = E.max_scans || "";
+    const info = $("#exp-info", v);
+    info.classList.toggle("hidden", E.expMode === "no");
+    if (E.expMode === "date") info.innerHTML = E.expires ? (E.expires * 1000 < Date.now() ? `<span style="color:var(--bad)">Ya ha caducado.</span> Cambia la fecha para que vuelva a funcionar.` : `Funciona hasta el <b>${esc(ed.toLocaleString("es", { dateStyle: "long", timeStyle: "short" }))}</b> (${esc(until(E.expires))}). Luego mostrará «Este QR ha caducado».`) : "Elige el día en que deja de funcionar.";
+    if (E.expMode === "scans") info.innerHTML = E.max_scans ? `Cuando lo escaneen <b>${fmtN(E.max_scans)}</b> veces dejará de funcionar${E.id ? ` (lleva ${fmtN(S.qrs.find((x) => x.id === E.id)?.scans || 0)})` : ""}.` : "Escribe cuántas lecturas se permiten.";
+    const pinOn = E.pinOn ?? !!E.has_pin;
+    $("#pinon", v).checked = pinOn;
+    $("#pinbox", v).classList.toggle("hidden", !pinOn); $("#pin-info", v).classList.toggle("hidden", !pinOn);
+    $("#pin", v).placeholder = E.has_pin ? "Déjalo vacío para mantener el PIN actual" : "1234";
     const base = S.me.public_url || location.origin;
     $("#dyn-url", v).innerHTML = E.dynamic ? `El QR llevará <b>${esc(base)}/r/${esc(E.code)}</b> y te redirigirá a tu destino.${/\/\/(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base) ? `<br><span style="color:var(--warn)">${icon("alert", "sm")} Esa dirección solo funciona en tu red de casa. Pon tu dirección pública en Ajustes para que funcione desde cualquier móvil.</span>` : ""}` : "";
   }
@@ -358,8 +379,25 @@ function viewCreate(v, arg) {
     $("#dyn", v).addEventListener("change", (e) => { E.dynamic = e.target.checked; updDyn(); refresh(); if (E.dynamic) $("#stage").animate([{ transform: "scale(1)" }, { transform: "scale(1.03)" }, { transform: "scale(1)" }], { duration: 400 }); });
     $("#code", v).addEventListener("input", (e) => { E.code = e.target.value.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40); updDyn(); refresh(); });
     $("#active", v).addEventListener("change", (e) => { E.active = e.target.value === "1"; refresh(); });
-    $("#expires", v).addEventListener("change", (e) => { E.expires = e.target.value ? new Date(e.target.value + "T23:59:59").getTime() / 1000 : null; });
-    $("#maxs", v).addEventListener("input", (e) => { E.max_scans = +e.target.value || null; });
+    const setExp = () => { const d = $("#expires", v).value; E.expires = d ? new Date(`${d}T${$("#exptime", v).value || "23:59"}:59`).getTime() / 1000 : null; updDyn(); };
+    $("#expseg", v).addEventListener("click", (e) => {
+      const b = e.target.closest("[data-v]"); if (!b) return;
+      E.expMode = b.dataset.v;
+      if (E.expMode !== "date") E.expires = null;
+      if (E.expMode !== "scans") E.max_scans = null;
+      if (E.expMode === "date" && !E.expires) { const d = new Date(); d.setDate(d.getDate() + 7); d.setHours(23, 59, 59, 0); E.expires = d.getTime() / 1000; }
+      updDyn();
+    });
+    $("#exp-date", v).addEventListener("click", (e) => {
+      const b = e.target.closest("[data-plus]"); if (!b) return;
+      const base = E.expires && E.expires * 1000 > Date.now() ? new Date(E.expires * 1000) : new Date();
+      base.setDate(base.getDate() + +b.dataset.plus); E.expires = base.getTime() / 1000; updDyn();
+    });
+    $("#expires", v).addEventListener("change", setExp);
+    $("#exptime", v).addEventListener("change", setExp);
+    $("#maxs", v).addEventListener("input", (e) => { E.max_scans = +e.target.value || null; const i = $("#exp-info", v); i.innerHTML = E.max_scans ? `Cuando lo escaneen <b>${fmtN(E.max_scans)}</b> veces dejará de funcionar.` : "Escribe cuántas lecturas se permiten."; });
+    $("#pinon", v).addEventListener("change", (e) => { E.pinOn = e.target.checked; if (!E.pinOn) E.pin = ""; updDyn(); if (E.pinOn && !E.has_pin) $("#pin", v).focus(); });
+    $("#pin", v).addEventListener("input", (e) => { E.pin = e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 32); if (e.target.value !== E.pin) e.target.value = E.pin; });
   }
 
   // --- opciones de diseño
@@ -573,7 +611,7 @@ function viewCreate(v, arg) {
     if (pop || c !== lastContent) { qrbox.classList.remove("pop"); void qrbox.offsetWidth; qrbox.classList.add("pop"); }
     lastContent = c;
     $("#m-info", v).textContent = empty ? "Escribe el contenido para ver tu QR" : `Versión ${r.version} · ${r.n}×${r.n} módulos · corrección ${r.ecc}`;
-    $("#m-chips", v).innerHTML = (E.dynamic ? `<span class="chip dyn">${icon("bolt", "sm")}Dinámico</span>` : "") + (E.dynamic && !E.active ? ` <span class="chip off">En pausa</span>` : "");
+    $("#m-chips", v).innerHTML = (E.dynamic ? `<span class="chip dyn">${icon("bolt", "sm")}Dinámico</span>` : "") + (E.dynamic && !E.active ? ` <span class="chip off">En pausa</span>` : "") + (E.dynamic && (E.pinOn ?? E.has_pin) ? ` <span class="chip">${icon("lock", "sm")}PIN</span>` : "") + (E.dynamic && E.expires ? ` <span class="chip ${E.expires * 1000 < Date.now() ? "off" : ""}">${E.expires * 1000 < Date.now() ? "Caducado" : "Caduca " + esc(fmtDate(E.expires))}</span>` : "");
     const sub = $(".step[data-s='content'] .sub", v);
     if (sub) sub.textContent = empty ? "" : `${TYPES[E.kind].name}: ${(E.dynamic ? encode(E.kind, E.fields[E.kind]) : c).slice(0, 60)}`;
     checkRead(empty ? null : c);
@@ -610,7 +648,13 @@ function viewCreate(v, arg) {
 
   // --- guardar y descargar
   function current() {
-    return { name: E.name || autoName(), kind: E.kind, fields: E.fields[E.kind] || {}, content: content(), design: E.design, folder: E.folder, favorite: E.favorite, dynamic: E.dynamic, code: E.dynamic ? E.code : null, target: E.dynamic ? encode(E.kind, E.fields[E.kind] || {}) : null, active: E.active, expires: E.expires, max_scans: E.max_scans };
+    return { name: E.name || autoName(), kind: E.kind, fields: E.fields[E.kind] || {}, content: content(), design: E.design, folder: E.folder, favorite: E.favorite, dynamic: E.dynamic, code: E.dynamic ? E.code : null, target: E.dynamic ? encode(E.kind, E.fields[E.kind] || {}) : null, active: E.active, expires: E.expires, max_scans: E.max_scans, pin: pinToSend() };
+  }
+  function pinToSend() {
+    const on = E.pinOn ?? !!E.has_pin;
+    if (!E.dynamic) return null;
+    if (!on) return E.has_pin ? "" : null;   // "" = quitar el PIN
+    return E.pin ? E.pin : null;            // null = dejar el que hay
   }
   function autoName() {
     const f = E.fields[E.kind] || {};
@@ -622,6 +666,8 @@ function viewCreate(v, arg) {
   async function save() {
     const miss = missing(E.kind, E.fields[E.kind]);
     if (miss.length) { toast(`Falta: ${miss.join(", ")}`, "bad"); $("[data-s='content']", v).classList.add("open"); return; }
+    if (E.dynamic && (E.pinOn ?? !!E.has_pin) && !E.has_pin && (E.pin || "").length < 4) { toast("Escribe un PIN de al menos 4 letras o números", "bad"); $("#pin", v)?.focus(); return; }
+    if (E.dynamic && E.expMode === "scans" && !E.max_scans) { toast("Escribe cuántas lecturas se permiten, o elige «No caduca»", "bad"); return; }
     const btn = $("#save", v); btn.disabled = true;
     try {
       const data = current();
@@ -629,6 +675,7 @@ function viewCreate(v, arg) {
       const i = S.qrs.findIndex((x) => x.id === saved.id);
       if (i >= 0) S.qrs[i] = saved; else S.qrs.unshift(saved);
       const wasNew = !E.id;
+      E.has_pin = !!saved.has_pin; E.pin = ""; E.pinOn = undefined; if ($("#pin", v)) $("#pin", v).value = "";
       E.id = saved.id; E.code = saved.code || E.code; E.short_url = saved.short_url; E.content = saved.content; E.name = saved.name;
       $("#name", v).value = E.name;
       localStorage.removeItem("qp-draft");
@@ -658,9 +705,8 @@ function viewCreate(v, arg) {
   $("#share", v).onclick = async () => {
     try {
       const blob = await exportQR({ content: content(), design: E.design }, "png", 1024);
-      const file = new File([blob], `${slug(E.name || autoName())}.png`, { type: "image/png" });
-      if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: E.name || "Código QR" });
-      else { download(blob, file.name); toast("Este navegador no comparte archivos: lo he descargado"); }
+      const name = `${slug(E.name || autoName())}.png`;
+      if (!(await shareFile(blob, name, E.name || ""))) { download(blob, name); toast("Este navegador no comparte archivos: lo he descargado"); }
     } catch (err) { if (err.name !== "AbortError") toast("No se pudo compartir", "bad"); }
   };
   $("#shlink", v)?.addEventListener("click", () => { const q = S.qrs.find((x) => x.id === E.id); if (q) shareDlg(q); });
@@ -736,6 +782,8 @@ function viewLibrary(v) {
       <div class="info"><div class="name" title="${esc(q.name)}">${esc(q.name)}</div>
         <div class="meta"><span class="chip">${esc(TYPES[q.kind]?.name || q.kind)}</span>
           ${q.dynamic ? `<span class="chip ${q.active ? "dyn" : "off"}">${q.active ? icon("bolt", "sm") + fmtN(q.scans) + " lecturas" : "En pausa"}</span>` : ""}
+          ${q.dynamic && q.has_pin ? `<span class="chip" title="Pide PIN">${icon("lock", "sm")}</span>` : ""}
+          ${q.dynamic && q.expires && q.expires * 1000 < Date.now() ? `<span class="chip off">Caducado</span>` : q.dynamic && q.max_scans && q.scans >= q.max_scans ? `<span class="chip off">Agotado</span>` : ""}
           ${q.folder ? `<span class="chip">${icon("folder", "sm")}${esc(q.folder)}</span>` : ""}
           ${q.share_url ? `<span class="chip" title="Compartido con enlace">${icon("share", "sm")}</span>` : ""}
           <button class="btn ghost icon more" data-more title="Más">${icon("dots")}</button></div></div></article>`).join("");
@@ -791,6 +839,10 @@ function qrMenu(anchor, q, redraw) {
     { icon: "download", label: "Descargar SVG", run: async () => download(await exportQR(q, "svg"), `${slug(q.name)}.svg`) },
     { icon: "download", label: "Descargar JPG", run: async () => download(await exportQR(q, "jpg", 1024), `${slug(q.name)}.jpg`) },
     { icon: "download", label: "Descargar PDF", run: async () => download(await exportQR(q, "pdf", 2048), `${slug(q.name)}.pdf`) },
+    { icon: "share", label: "Compartir imagen (WhatsApp, Telegram…)", run: async () => {
+      const blob = await exportQR(q, "png", 1024), name = `${slug(q.name)}.png`;
+      try { if (!(await shareFile(blob, name, q.name))) { download(blob, name); toast("Este navegador no comparte archivos: lo he descargado"); } } catch { toast("No se pudo compartir", "bad"); }
+    } },
     ...(S.store.mode === "server" ? [{ icon: "share", label: q.share_url ? "Enlace para compartir" : "Compartir con un enlace", run: () => shareDlg(q, redraw) }] : []),
     { icon: "copy", label: "Duplicar", run: async () => {
       const c = structuredClone(q); delete c.id; delete c.share; delete c.share_url; c.name = q.name + " (copia)"; c.code = null; c.dynamic = q.dynamic;
@@ -824,12 +876,15 @@ async function shareDlg(q, redraw) {
     body: `<div class="steps" style="gap:12px"><div class="small muted">Cualquiera con este enlace podrá ver el QR y descargarlo en PNG, SVG o PDF, sin necesitar cuenta.</div>
       <div class="row"><input class="input grow" id="shurl" value="${esc(q.share_url)}" readonly><button class="btn" id="shcopy">${icon("copy", "sm")}Copiar</button></div>
       <div class="row"><a class="btn sm ghost" href="${esc(q.share_url)}" target="_blank" rel="noopener">${icon("eye", "sm")}Ver la página</a>
-      ${navigator.share ? `<button class="btn sm ghost" id="shnat">${icon("share", "sm")}Enviar…</button>` : ""}</div></div>`,
+      ${canShareText() ? `<button class="btn sm ghost" id="shnat">${icon("share", "sm")}Enviar…</button>` : ""}</div>
+      <div class="row"><a class="btn sm" id="shwa" href="https://wa.me/?text=${encodeURIComponent(q.name + " " + q.share_url)}" target="_blank" rel="noopener">WhatsApp</a>
+      <a class="btn sm" id="shtg" href="https://t.me/share/url?url=${encodeURIComponent(q.share_url)}&text=${encodeURIComponent(q.name)}" target="_blank" rel="noopener">Telegram</a>
+      <a class="btn sm ghost" href="mailto:?subject=${encodeURIComponent(q.name)}&body=${encodeURIComponent(q.share_url)}">Correo</a></div></div>`,
     buttons: [["Dejar de compartir", "off"], ["Listo", null, "primary"]],
     onOpen: (w) => {
       w.querySelector("#shcopy").onclick = async () => { await navigator.clipboard.writeText(q.share_url); toast("Enlace copiado"); };
       w.querySelector("#shurl").onclick = (e) => e.target.select();
-      w.querySelector("#shnat")?.addEventListener("click", () => navigator.share({ title: q.name, url: q.share_url }).catch(() => {}));
+      w.querySelector("#shnat")?.addEventListener("click", () => shareText(q.name + " " + q.share_url, q.name));
     },
   });
   if (r === "off") { Object.assign(q, await S.store.unshare(q.id)); redraw?.(); toast("Ya no se comparte. El enlace ha dejado de funcionar"); }
@@ -931,7 +986,7 @@ function viewScan(v) {
   v.innerHTML = `<div class="page-head"><div><h1>Escanear</h1><p>Lee un QR con la cámara o desde una foto o captura de pantalla.</p></div></div>
   <div class="scan">
     <div class="steps">
-      <div class="cam" id="cam"><div class="cam-off" id="camoff">${icon("camera", "lg")}<b>Usa la cámara</b><span class="small" style="opacity:.75">Apunta a un QR y lo leo al momento.</span><button class="btn primary" id="start">${icon("camera")}Encender cámara</button></div>
+      <div class="cam" id="cam"><div class="cam-off" id="camoff">${icon("camera", "lg")}<b>Usa la cámara</b><span class="small" style="opacity:.75">Apunta a un QR y lo leo al momento.</span><button class="btn primary" id="start">${icon("camera")}Encender cámara</button><button class="btn sm ghost" id="snap">${icon("image", "sm")}O haz una foto</button><input type="file" id="snapf" accept="image/*" capture="environment" hidden></div>
         <video id="video" playsinline muted class="hidden"></video><div class="corners hidden"><i></i><i></i><i></i><i></i></div><div class="scanline"></div>
         <div class="cam-ui hidden" id="camui"><button class="btn sm" id="flip">${icon("flip", "sm")}Cambiar</button><button class="btn sm hidden" id="torch">${icon("bolt", "sm")}Linterna</button><button class="btn sm" id="stop">${icon("x", "sm")}Apagar</button></div></div>
       <div class="drop" id="sdrop" tabindex="0"><div class="thumb">${icon("image", "lg")}</div><div><b>Leer desde una imagen</b><div class="small muted">Arrastra una foto, pégala (Ctrl+V) o pulsa para elegirla.</div></div><input type="file" id="sfile" accept="image/*" hidden></div>
@@ -975,7 +1030,7 @@ function viewScan(v) {
   async function start() {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 1280 } }, audio: false });
-    } catch { toast("No he podido usar la cámara. Revisa el permiso del navegador (necesita https o localhost)", "bad"); return; }
+    } catch { toast(location.protocol === "http:" && location.hostname !== "localhost" ? "Con http el navegador no deja usar la cámara en directo. Pulsa «O haz una foto»" : "No he podido usar la cámara. Revisa el permiso", "bad"); return; }
     video.srcObject = stream; await video.play();
     $("#camoff", v).classList.add("hidden"); video.classList.remove("hidden"); $(".corners", v).classList.remove("hidden"); $("#camui", v).classList.remove("hidden");
     cam.classList.add("live");
@@ -1012,6 +1067,9 @@ function viewScan(v) {
       if (r) show(r); else toast("No encuentro ningún QR en esa imagen. Prueba con una más nítida", "bad");
     } catch (err) { toast(err.message, "bad"); }
   }
+  const snf = $("#snapf", v);
+  $("#snap", v).onclick = () => snf.click();
+  snf.onchange = () => { if (snf.files[0]) fromFile(snf.files[0]); snf.value = ""; };
   const sd = $("#sdrop", v), sf = $("#sfile", v);
   sd.onclick = () => sf.click();
   sf.onchange = () => { if (sf.files[0]) fromFile(sf.files[0]); sf.value = ""; };
@@ -1111,10 +1169,16 @@ async function viewSettings(v) {
     <div class="card pad"><h3>${icon("sun")}Apariencia</h3>
       <div class="seg" id="theme-seg">${[["system", "Como el sistema"], ["light", "Claro"], ["dark", "Oscuro"]].map(([k, t]) => `<button data-v="${k}" class="${theme === k ? "on" : ""}">${t}</button>`).join("")}</div></div>
 
-    <div class="card pad"><h3>${icon("install")}Instalar como app</h3>
+    ${APP ? `<div class="card pad"><h3>${icon("phone")}App de Android</h3>
+      <div class="small muted">Estás en la app QRPanel ${esc(appVersion())}. Si cambias de casa a fuera (o al revés), la app elige sola la dirección que funciona.</div>
+      <div class="row"><button class="btn" id="appsrv">${icon("globe")}Cambiar servidor</button><button class="btn ghost" id="appnews">${icon("sparkle")}Novedades de la app</button></div></div>` : `<div class="card pad"><h3>${icon("phone")}App para Android</h3>
+      <div class="small muted">Descarga la app QRPanel (APK) para entrar desde el móvil con tu usuario, en casa o desde fuera. Guarda y comparte los QR por WhatsApp, Telegram…</div>
+      <div class="row"><a class="btn" href="https://github.com/pctecnikk/qrpanel/releases?q=android&expanded=true" target="_blank" rel="noopener">${icon("download")}Descargar la app</a></div></div>`}
+
+    ${APP ? "" : `<div class="card pad"><h3>${icon("install")}Instalar como app</h3>
       <div class="small muted">QRPanel funciona como una app: con su icono, a pantalla completa y sin conexión para crear y escanear.</div>
       ${isIOS ? `<div class="small">En iPhone/iPad: pulsa <b>Compartir</b> en Safari y luego <b>Añadir a pantalla de inicio</b>.</div>` : `<button class="btn primary" id="install" ${installEvt ? "" : "disabled"}>${icon("install")}Instalar QRPanel</button><div class="small faint">${installEvt ? "" : matchMedia("(display-mode: standalone)").matches ? "Ya está instalada." : "Si el botón no se activa, usa el menú del navegador → «Instalar aplicación»."}</div>`}
-    </div>
+    </div>`}
 
     <div class="card pad"><h3>${icon("box")}Copia de seguridad</h3>
       <div class="small muted">Descarga todos tus QR, logos y plantillas en un archivo, o recupéralos desde uno.</div>
@@ -1136,12 +1200,14 @@ async function viewSettings(v) {
     <div class="card pad" style="grid-column:1/-1"><div class="row between"><h3>${icon("users")}Usuarios</h3><button class="btn sm" id="uadd">${icon("plus", "sm")}Crear usuario</button></div><div class="ulist" id="ulist"></div></div>` : ""}
 
     <div class="card pad"><h3>${icon("info")}Acerca de</h3>
-      <div class="small">QRPanel ${esc(S.me.version || "")} · tu propio generador de códigos QR. Código disponible gratis para uso no comercial (licencia PolyForm Noncommercial).</div>
+      <div class="small"><b>Web ${esc(S.info?.version || S.me.version || "")}</b>${APP ? ` · <b>App ${esc(appVersion())}</b>` : ""} · QRPanel, tu propio generador de códigos QR. Código disponible gratis para uso no comercial (licencia PolyForm Noncommercial).</div>
       <div class="small faint">«QR Code» es una marca registrada de DENSO WAVE INCORPORATED. Los nombres de servicios que aparecen (WhatsApp, Google Maps…) son de sus dueños y solo se usan para indicar con qué funcionan.</div>
       <div class="row"><a class="btn sm" href="https://github.com/pctecnikk/qrpanel" target="_blank" rel="noopener">${icon("github", "sm")}GitHub</a><a class="btn sm ghost" href="/static/vendor/LICENSES.txt" target="_blank">Licencias</a></div>
       <div class="small faint">Atajos: Ctrl+S guardar · Ctrl+Z deshacer · Ctrl+Y rehacer · Ctrl+V pegar logo o imagen.</div></div>
   </div>`;
   $("#theme-seg", v).onclick = (e) => { const b = e.target.closest("[data-v]"); if (!b) return; localStorage.setItem("qp-theme", b.dataset.v); applyTheme(); $$("#theme-seg button", v).forEach((x) => x.classList.toggle("on", x === b)); $("#theme").innerHTML = icon(document.documentElement.dataset.theme === "dark" ? "sun" : "moon"); };
+  $("#appsrv", v)?.addEventListener("click", () => APP.changeServer());
+  $("#appnews", v)?.addEventListener("click", () => APP.news());
   $("#install", v)?.addEventListener("click", async () => { if (!installEvt) return; installEvt.prompt(); const r = await installEvt.userChoice; if (r.outcome === "accepted") { confetti(); toast("¡Instalada!"); } installEvt = null; });
   $("#exp", v).onclick = async () => { const d = await S.store.exportAll(); download(new Blob([JSON.stringify(d, null, 1)], { type: "application/json" }), `qrpanel-copia-${new Date().toISOString().slice(0, 10)}.json`); };
   $("#imp", v).onclick = () => $("#impf", v).click();

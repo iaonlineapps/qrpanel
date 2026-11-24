@@ -30,9 +30,14 @@ de memoria.
   móvil (en grande y en pequeño) y te da una nota de 0 a 100 con consejos si algo falla.
 - **Descargas** en PNG, SVG (vectorial, para imprenta), JPG, WebP y PDF (A4 listo para
   imprimir), hasta 4096 px. También
-  copiar la imagen, compartirla desde el móvil o copiar el texto.
-- **QR dinámicos** con código corto (`/r/carta`), pausa, fecha de caducidad y máximo de
-  lecturas. Si cambias el destino, el QR impreso sigue valiendo.
+  copiar la imagen, **compartirla por WhatsApp, Telegram, correo…** o copiar el texto.
+- **QR dinámicos** con código corto (`/r/carta`) y pausa. Si cambias el destino, el QR
+  impreso sigue valiendo.
+- **Caduca o no caduca, tú eliges:** sin caducidad, hasta una fecha y hora, o tras un número
+  de lecturas. Cuando caduca, quien lo escanea ve un aviso en vez del destino.
+- **QR con PIN:** un QR dinámico puede pedir un PIN antes de abrir el destino (para menús
+  privados, documentos, invitaciones…). Se guarda cifrado y se bloquea a quien prueba PIN
+  al azar.
 - **Estadísticas:** lecturas por día, por hora, por dispositivo, sistema y navegador,
   visitantes únicos y los QR más escaneados.
 - **Biblioteca** con búsqueda, favoritos, carpetas, duplicar, renombrar y descarga de
@@ -48,7 +53,9 @@ de memoria.
 - **Usuarios:** el primero que se registra es el administrador; los demás piden cuenta y
   el administrador los aprueba. Cada uno ve solo sus QR.
 - **Copia de seguridad:** exporta e importa todo (QR, logos y plantillas) en un archivo.
-- **App instalable** en el móvil y el PC (PWA), con atajos de teclado, deshacer y rehacer.
+- **App para Android** (APK) para entrar con tu usuario desde el móvil, en casa o fuera.
+  También se instala como app en el móvil y el PC desde el navegador (PWA), con atajos de
+  teclado, deshacer y rehacer.
 - **Sin servidor también:** si abres la web sin el servidor detrás, funciona en "modo
   local" y guarda los QR en el navegador (sin QR dinámicos ni estadísticas).
 
@@ -89,13 +96,14 @@ lo manda al destino. Así puedes:
 
 - **Cambiar el destino** cuando quieras sin reimprimir nada.
 - **Ver cuántas veces lo escanean**, cuándo y desde qué tipo de móvil.
-- **Pausarlo**, ponerle **fecha de caducidad** o un **máximo de lecturas**.
+- **Pausarlo**, decidir si **caduca o no** (en una fecha o tras X lecturas) y ponerle un
+  **PIN** para que solo lo abra quien lo sepa.
 
 Las webs de QR suelen cobrar por esto, y si dejas de pagar tus QR impresos dejan de
 funcionar. Con QRPanel son tuyos para siempre.
 
 > **Importante:** para que un QR dinámico funcione en cualquier móvil, tu QRPanel tiene que
-> verse desde internet (mira [Acceso desde fuera de casa](#6-acceso-desde-fuera-de-casa)) y
+> verse desde internet (mira [Acceso desde fuera de casa](#7-acceso-desde-fuera-de-casa)) y
 > tienes que poner tu **dirección pública** antes de imprimirlo. Si no, solo funcionará
 > conectado a tu WiFi.
 
@@ -172,7 +180,93 @@ docker compose up -d --build
 
 Tus QR no se tocan: están en `DATA_DIR`, no en la carpeta de la app.
 
-## 5. Comandos útiles
+## 5. App para Android (APK)
+
+> ⚠️ **Antes de nada: la app necesita tu propio servidor QRPanel ya instalado y funcionando**
+> (en una Raspberry Pi o cualquier Linux con Docker). La app solo es la ventana para entrar en
+> él desde el móvil: sin servidor no hace nada. Si aún no lo tienes, sigue primero los pasos de
+> **[Instalar](#2-instalar)** y comprueba que entras desde el navegador.
+
+Es la misma web de QRPanel dentro de una app, así que siempre está al día con tu servidor.
+
+**Instalarla en el móvil:**
+
+1. Abre en el móvil la página de **[descargas (Releases)](https://github.com/pctecnikk/qrpanel/releases)**,
+   busca la más nueva que se llama **App Android** y toca **`QRPanel.apk`**.
+2. Al abrir el archivo, Android pedirá permiso para **instalar apps de origen desconocido**.
+   Dale permiso y toca **Instalar**. Si aparece *Play Protect*, toca **Más detalles →
+   Instalar de todas formas**: sale porque la app no viene de Google Play.
+3. Abre **QRPanel**. Te pide dos direcciones:
+   - **En casa (wifi):** la IP de tu servidor, por ejemplo `192.168.1.50:8091`.
+   - **Fuera de casa:** tu dominio, por ejemplo `https://qr.midominio.com` (mira
+     [Acceso desde fuera de casa](#7-acceso-desde-fuera-de-casa)). Si no tienes, déjala vacía.
+4. Entra con tu **usuario y contraseña**, los mismos de la web.
+
+**Casa y fuera, sin tocar nada:** cada vez que abres la app prueba primero la dirección de
+casa (tarda como mucho 2-3 segundos) y, si no responde porque estás con datos o en otra wifi,
+entra por la de fuera. Si una falla, la app te deja usar la otra o cambiarlas.
+
+**Qué hace:**
+
+- Todo lo de la web: crear, diseñar, guardar, ver estadísticas, escanear y hacer lotes.
+- **Descargas** (PNG, SVG, JPG, PDF, ZIP) directas a la carpeta **Descargas/QRPanel** del móvil.
+- **Compartir la imagen del QR** por WhatsApp, Telegram, correo o cualquier app (botón
+  **Compartir** del editor o **Compartir imagen** en el menú de cada QR de la biblioteca).
+- **Escanear con la cámara.** Si entras por `http://` en casa, la cámara en directo no se
+  puede usar (Android solo la deja con https): toca **O haz una foto** y la lee igual.
+- **Atajos:** mantén pulsado el icono para ir directo a *Crear QR*, *Escanear* o *Cambiar servidor*.
+- **Menú de la app:** pulsa **Atrás** en la pantalla principal: *Cambiar servidor*,
+  *Recargar*, *Novedades* y *Salir*. También en **Ajustes → App de Android**.
+
+Necesita Android 7 o más nuevo. En iPhone no hay app: abre QRPanel en Safari y usa
+**Compartir → Añadir a pantalla de inicio**.
+
+### Versiones: la web y la app van por separado
+
+QRPanel tiene **dos números de versión**, cada uno con su propio ritmo:
+
+| Qué | Dónde está el número | Dónde lo ves | Novedades |
+|---|---|---|---|
+| **Web (servidor)** | [`app/VERSION`](app/VERSION) | **Ajustes → Acerca de** («Web 1.0.0») | [`CHANGELOG.md`](CHANGELOG.md) |
+| **App Android** | `versionName` en [`android/src/main/AndroidManifest.xml`](android/src/main/AndroidManifest.xml) | **Ajustes → Acerca de** («App 1.0», solo dentro de la app) y en el menú *Atrás* | [`novedades.md`](android/src/main/res/raw/novedades.md) |
+
+**Cómo se numeran:** de poco en poco, subiendo el último número. La web va 1.0.0 → 1.0.1 →
+1.0.2… y la app 1.0 → 1.0.1 → 1.0.2… Solo se sube el número del medio para un cambio grande.
+Si un cambio solo toca la web, la app no cambia de versión (y al revés).
+
+<details>
+<summary>Compilar la APK tú mismo y sacar una versión nueva</summary>
+
+El código está en [`android/`](android/). No hace falta Android Studio. En Ubuntu o Debian:
+
+```bash
+sudo apt install default-jdk aapt apksigner zipalign dalvik-exchange
+./android/build.sh
+```
+
+La APK queda en `android/build/`. Sin más opciones se firma con una clave de prueba. Para
+firmarla con la tuya (necesaria para que las actualizaciones se instalen encima):
+
+```bash
+keytool -genkeypair -keystore mi-clave.jks -alias qrpanel -keyalg RSA -keysize 2048 -validity 10000
+KEYSTORE=mi-clave.jks KS_PASS=tu-contraseña KEY_ALIAS=qrpanel ./android/build.sh
+```
+
+> Guarda bien esa clave y su contraseña **fuera del repositorio**. Si la pierdes, las
+> próximas versiones no se podrán instalar encima: habría que desinstalar la app.
+
+**Sacar una versión nueva de la app:** sube `versionCode` (uno más) y `versionName` en
+`android/src/main/AndroidManifest.xml`, apunta las novedades arriba del todo en
+`android/src/main/res/raw/novedades.md`, compila con tu clave, copia la APK a
+`android/dist/QRPanel.apk` y súbelo a `main`. GitHub crea solo la Release `android-vX.Y`
+con la APK y las novedades.
+
+**Sacar una versión nueva de la web:** cambia el número de `app/VERSION`, apunta las
+novedades en `CHANGELOG.md` y súbelo. La imagen Docker se publica sola.
+
+</details>
+
+## 6. Comandos útiles
 
 ```bash
 docker compose ps                 # estado
@@ -181,7 +275,7 @@ docker compose restart            # reiniciar
 docker compose down               # parar
 ```
 
-## 6. Acceso desde fuera de casa
+## 7. Acceso desde fuera de casa
 
 Para que los QR dinámicos funcionen con datos móviles, QRPanel tiene que verse desde
 internet con **https**. No abras el puerto 8091 directamente en el router: usa un proxy
@@ -197,7 +291,7 @@ qr.midominio.com {
 }
 ```
 
-## 7. Seguridad
+## 8. Seguridad
 
 - Las contraseñas se guardan como hash PBKDF2, nunca tal cual.
 - Tras varios intentos fallidos de entrar se bloquea un rato a quien lo intenta.
@@ -205,11 +299,15 @@ qr.midominio.com {
 - Cambiar la contraseña cierra las demás sesiones abiertas.
 - Los QR dinámicos solo pueden llevar a direcciones `https://`, `http://`, `mailto:`,
   `tel:`, `sms:` y `geo:` (nunca código).
+- Los PIN de los QR se guardan cifrados (PBKDF2). Tras 5 PIN mal puestos se bloquea
+  15 minutos a quien lo intenta, y si llegan muchos fallos de sitios distintos se bloquea
+  ese QR media hora. La página del PIN no enseña el nombre ni el destino.
+- La app de Android solo abre dentro tu servidor; los enlaces de fuera se abren en el navegador.
 - Las lecturas no guardan la IP: solo un identificador anónimo por día para contar
   visitantes únicos. Se borran solas a los dos años.
 - La web lleva una política de seguridad estricta (CSP) y no carga nada de fuera.
 
-## 8. Aviso legal y privacidad (si lo abres a otras personas)
+## 9. Aviso legal y privacidad (si lo abres a otras personas)
 
 Si solo lo usas tú o tu familia, no tienes que hacer nada. Si dejas que otras personas
 creen cuentas o publicas QR dinámicos para el público, ten en cuenta que **quien instala
@@ -228,7 +326,7 @@ QRPanel es el responsable** de lo que se hace con él:
 - **Marcas:** QRPanel no incluye logos de otras empresas. Los iconos rápidos son dibujos
   genéricos propios. Si un usuario sube el logo de otra marca, la responsabilidad es suya.
 
-## 9. Licencia
+## 10. Licencia
 
 QRPanel se publica con la licencia [PolyForm Noncommercial 1.0.0](LICENSE.md). En resumen
 (el texto que vale es el de la licencia):

@@ -38,6 +38,10 @@ class Limiter:
 by_ip_user = Limiter(5, 900, 900)
 # 30 fallos con el mismo usuario desde cualquier sitio: 15 minutos (por si cambian de IP).
 by_user = Limiter(30, 900, 900)
+# PIN de un QR: 5 fallos desde la misma IP en 10 minutos -> 15 minutos de espera;
+# 50 fallos con el mismo QR desde cualquier sitio -> 30 minutos (contra ataques repartidos).
+pin_ip = Limiter(5, 600, 900)
+pin_qr = Limiter(50, 3600, 1800)
 # Registro: como mucho 5 cuentas nuevas por IP y hora.
 register = Limiter(5, 3600, 3600)
 

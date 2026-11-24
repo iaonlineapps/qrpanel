@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">QRPanel</string>
+    <string name="shortcut_create">Crear QR</string>
+    <string name="shortcut_scan">Escanear</string>
+    <string name="shortcut_server">Cambiar servidor</string>
+</resources>
