@@ -111,7 +111,10 @@ funcionar. Con QRPanel son tuyos para siempre.
 
 ## 1. Requisitos
 
-- Una Raspberry Pi 3/4/5 o cualquier equipo Linux con **Docker** y **Docker Compose**.
+- Una Raspberry Pi 3/4/5, un mini PC o cualquier equipo Linux (Raspberry Pi OS de 32 o
+  64 bits, Debian, Ubuntu…) con **Docker** y **Docker Compose**. Funciona en procesadores
+  Intel/AMD (amd64) y ARM (arm64 y armv7). Gasta unos 55 MB de memoria, así que va bien
+  incluso en una Pi 3 con 1 GB.
   Si no lo tienes: `curl -fsSL https://get.docker.com | sh` y luego
   `sudo usermod -aG docker $USER` (cierra la sesión y vuelve a entrar).
 - Para los QR dinámicos, un dominio o subdominio que apunte a tu servidor (opcional).
