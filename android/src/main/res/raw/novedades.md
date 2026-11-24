@@ -1,5 +1,10 @@
 # Novedades de la app QRPanel para Android
 
+## Versión 1.0.1
+
+- La app ya habla **inglés**: elige el idioma en la web (Ajustes → Idioma / Language) y la app
+  lo sigue. Si no eliges, usa el idioma del móvil.
+
 ## Versión 1.0.0
 
 - Primera versión de la app.

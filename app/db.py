@@ -112,6 +112,14 @@ def init():
     if "share" not in cols:  # enlace publico para compartir un QR
         run("ALTER TABLE qrs ADD COLUMN share TEXT")
         run("CREATE UNIQUE INDEX IF NOT EXISTS qrs_share ON qrs(share)")
+    scols = {r["name"] for r in q("PRAGMA table_info(scans)")}
+    if "tag" not in scols:  # mesa (o lo que venga en ?m=) desde la que se escaneo
+        run("ALTER TABLE scans ADD COLUMN tag TEXT")
+    ucols = {r["name"] for r in q("PRAGMA table_info(users)")}
+    if "avatar" not in ucols:  # foto de perfil o logo de la marca de cada usuario
+        run("ALTER TABLE users ADD COLUMN avatar TEXT")
+    if "lang" not in ucols:  # idioma elegido en la web (para sus páginas públicas)
+        run("ALTER TABLE users ADD COLUMN lang TEXT")
     run("DELETE FROM sessions WHERE expires<?", time.time())
     run("DELETE FROM scans WHERE at<?", time.time() - 730 * 86400)  # se guardan dos anos
     if ADMIN_USER and ADMIN_PASSWORD and not q1("SELECT id FROM users WHERE username=?", ADMIN_USER):

@@ -25,7 +25,7 @@ export const FRAME_SHAPES = [
 ];
 export const BALL_SHAPES = [
   ["square", "Cuadrado"], ["rounded", "Redondeado"], ["circle", "Círculo"], ["leaf", "Hoja"],
-  ["diamond", "Rombo"], ["star", "Estrella"], ["dots", "Puntos"],
+  ["diamond", "Rombo"], ["star", "Estrella"], ["dots", "Puntos"], ["paw", "Huella"],
 ];
 export const FRAMES = [
   ["none", "Sin marco"], ["card", "Tarjeta"], ["top", "Cinta arriba"], ["bubble", "Bocadillo"],
@@ -168,6 +168,11 @@ function eyeBall(x, y, shape) {
     case "diamond": return diamond(cx, cy, 1.85);
     case "star": return star(cx, cy, 2.0, 0.95, 5);
     case "dots": { let d = ""; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) d += circle(x + i + 0.5, y + j + 0.5, 0.5); return d; }
+    case "paw": {
+      // huella: almohadilla y cuatro dedos, ocupando el cuadrado de 3x3
+      const el = (ex, ey, rx, ry) => `M${n3(ex - rx)} ${n3(ey)}a${n3(rx)} ${n3(ry)} 0 1 0 ${n3(2 * rx)} 0a${n3(rx)} ${n3(ry)} 0 1 0 ${n3(-2 * rx)} 0Z`;
+      return el(cx, cy + 0.5, 1.02, 0.92) + el(cx - 1.12, cy - 0.22, 0.42, 0.5) + el(cx + 1.12, cy - 0.22, 0.42, 0.5) + el(cx - 0.45, cy - 1.0, 0.44, 0.52) + el(cx + 0.45, cy - 1.0, 0.44, 0.52);
+    }
     default: return `M${x} ${y}h3v3h-3Z`;
   }
 }
@@ -242,7 +247,12 @@ export function render(text, design, opts = {}) {
   const label = esc(String(F.text || "").slice(0, 40));
   let vx = -mg, vy = -mg, w = T, h = T, under = "", over = "";
   const L = T * 0.2, P = T * 0.05;
-  const txt = (y, fill) => `<text x="${n3(-mg + T / 2)}" y="${n3(y)}" text-anchor="middle" dominant-baseline="central" font-family="${esc(font)}" font-weight="800" font-size="${n3(L * 0.42)}" letter-spacing="${n3(L * 0.03)}" fill="${fill}">${label}</text>`;
+  // el texto se encoge si no cabe (los textos largos no se salen del marco)
+  const nch = Math.max(1, [...String(F.text || "").slice(0, 40)].length);
+  const txt = (y, fill, avail = T * 0.92) => {
+    const fs = Math.min(L * 0.42, avail / (nch * 0.68)), ls = fs * 0.07;
+    return `<text x="${n3(-mg + T / 2)}" y="${n3(y)}" text-anchor="middle" dominant-baseline="central" font-family="${esc(font)}" font-weight="800" font-size="${n3(fs)}" letter-spacing="${n3(ls)}" fill="${fill}">${label}</text>`;
+  };
   switch (F.style) {
     case "card":
       vx -= P; vy -= P; w += 2 * P; h += 2 * P + L;
@@ -256,9 +266,9 @@ export function render(text, design, opts = {}) {
       const s = T * 0.025;
       vx -= P + s; vy -= P + s; w += 2 * (P + s); h += 2 * (P + s) + L * 1.25;
       under = `<rect x="${n3(-mg - P)}" y="${n3(-mg - P)}" width="${n3(T + 2 * P)}" height="${n3(T + 2 * P)}" rx="${n3(T * 0.08)}" fill="none" stroke="${fc}" stroke-width="${n3(s * 2)}"/>`;
-      const by = -mg + T + P + s + L * 0.3, bw = T * 0.78, bx = -mg + (T - bw) / 2, cx = -mg + T / 2;
+      const by = -mg + T + P + s + L * 0.3, bw = Math.min(T + 2 * P, Math.max(T * 0.78, nch * L * 0.42 * 0.68 + L * 0.6)), bx = -mg + (T - bw) / 2, cx = -mg + T / 2;
       over = `<path d="M${n3(cx - L * 0.18)} ${n3(by + 0.5)}L${n3(cx)} ${n3(by - L * 0.22)}L${n3(cx + L * 0.18)} ${n3(by + 0.5)}Z" fill="${fc}"/>` +
-        `<rect x="${n3(bx)}" y="${n3(by)}" width="${n3(bw)}" height="${n3(L * 0.9)}" rx="${n3(L * 0.45)}" fill="${fc}"/>` + txt(by + L * 0.45, tc);
+        `<rect x="${n3(bx)}" y="${n3(by)}" width="${n3(bw)}" height="${n3(L * 0.9)}" rx="${n3(L * 0.45)}" fill="${fc}"/>` + txt(by + L * 0.45, tc, bw - L * 0.6);
       break;
     }
     case "brackets": {

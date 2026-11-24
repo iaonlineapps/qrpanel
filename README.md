@@ -6,16 +6,33 @@ Tu propio generador de códigos QR, en tu casa o en tu servidor. Haces QR bonito
 degradados, marcos y texto), los guardas en tu biblioteca y, si quieres, los haces
 **dinámicos**: cambias a dónde llevan sin reimprimirlos y ves cuántas veces los escanean.
 Gratis, sin cuentas en webs de terceros y sin que tus QR dejen de funcionar cuando acaba
-una "prueba gratuita". En español, con modo claro y oscuro, y se instala como app.
+una "prueba gratuita". En español y en inglés, con modo claro y oscuro, y se instala como app.
 
 Funciona en una Raspberry Pi o en cualquier equipo con Docker. Gasta muy poco: unos 55 MB
 de memoria.
 
+> **Idiomas / Languages:** español e inglés. La web usa el idioma de tu navegador y se cambia en
+> **Ajustes → Idioma / Language** o en la pantalla de entrada. Las páginas públicas (carta, ficha
+> de la mascota, compartir…) salen en el idioma del móvil de quien escanea. La app de Android
+> sigue a la web.
+> Spanish and English. The web follows your browser language and can be changed in
+> **Settings → Idioma / Language** or on the sign-in screen. Public pages (menu, pet profile,
+> share…) follow the language of the phone that scans them. The Android app follows the web.
+
 **Qué incluye:**
 
-- **11 tipos de QR:** enlace, texto, WiFi, contacto (vCard), email, WhatsApp, llamada, SMS,
-  ubicación, evento de calendario y **mascota**: una ficha con foto y tus datos por si se
-  pierde, con botones para llamarte, mandarte un WhatsApp o enviarte dónde está.
+- **18 tipos de QR:** enlace, texto, WiFi, contacto (vCard), email, WhatsApp, llamada, SMS,
+  ubicación, fecha al calendario y **mascota**: una ficha con foto y tus datos por si se
+  pierde, con botones para llamarte, mandarte un WhatsApp o enviarte dónde está (y cartel
+  «Se busca» en A4 o para redes).
+- **Para negocios**, con su página en el móvil que cambias sin reimprimir:
+  **restaurante** (carta con alérgenos y QR por mesa), **reseñas** (directo a Google o
+  TripAdvisor, con **expositor de mesa 3D** multicolor y aristas redondeadas), **hotel**
+  (WiFi, horarios, servicios y QR por habitación), **oficina / recepción** (contactos y aviso de
+  llegada), **tienda / producto**, **evento con programa** (cuenta atrás y «Añadir al
+  calendario») e **inmobiliaria** (ficha del piso y «Pedir visita»).
+- **Encuadra las fotos** al subirlas (mover y zoom), para que la mascota o el producto no
+  salgan cortados.
 - **Diseño a tu gusto:** 10 formas de módulo (cuadrado, redondeado, líquido, puntos, píxel,
   elegante, rombo, estrella, barras y líneas), 6 marcos y 7 centros para los "ojos", colores
   sólidos o con degradado lineal o radial, fondo de color, degradado o transparente, y
@@ -65,9 +82,85 @@ de memoria.
 
 Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 
+<details>
+<summary><b>🇬🇧 English</b></summary>
+
+### QRPanel in English
+
+Your own QR code generator, at home or on your server. Make good-looking QR codes (logo,
+gradients, frames and text), keep them in your library and, if you like, make them
+**dynamic**: change where they lead without reprinting them and see how many times they are
+scanned. Free, with no third-party accounts and no QR codes that stop working when a "free
+trial" ends. Light and dark mode, installable as an app, about 55 MB of RAM.
+
+**Languages:** Spanish and English. The web opens in your browser's language and you can change
+it in **Settings → Idioma / Language** or on the sign-in screen. Public pages (restaurant menu,
+pet profile, share page, PIN page…) follow the language of the phone that scans the QR; add
+`?lang=en` or `?lang=es` to a link to force one. Posters, table cards and the 3D stand use the
+language you picked. The Android app follows the web.
+
+**What's included:** 18 QR types (link, text, WiFi, contact, email, WhatsApp, call, SMS,
+location, calendar date, **pet** profile with a "Lost" poster) · business pages you can change
+without reprinting: **restaurant** menu with allergens and one QR per table, **reviews** with a
+3D-printable table stand, **hotel**, **office / reception**, **shop / product**, **event**
+with programme and **real estate** · 10 module shapes, eye frames and centres, solid or
+gradient colours, logos and animals in the centre, frames with text, 12 templates and
+"Surprise me" · real scan check with a 0–100 score · PNG, SVG, JPG, WebP and PDF downloads ·
+dynamic QR codes with short code, pause, expiry (date or number of scans) and PIN · stats per
+day, hour, device and system · library with folders and favourites · batch creation · scanner
+with camera or image · 3D printing in two-colour 3MF or STL · public share links · your brand
+and several users approved by the admin · backup export and import · Android app and PWA.
+
+**Install:**
+
+```bash
+git clone https://github.com/pctecnikk/qrpanel.git
+cd qrpanel
+./install.sh       # the first time it only creates the .env file
+nano .env          # set DATA_DIR and, if you have a domain, PUBLIC_URL
+./install.sh       # now it installs and starts
+```
+
+Open **http://YOUR-SERVER-IP:8091** and create your account. **The first user is the
+administrator**; later sign-ups wait until the admin approves them in **Settings → Users**.
+
+**Main `.env` settings:** `DATA_DIR` (where everything is stored), `PORT` (default 8091), `TZ`,
+`PUID`/`PGID`, `PUBLIC_URL` (the public address that goes inside dynamic QR codes: set it
+**before printing them**), `ADMIN_USER`/`ADMIN_PASSWORD`, `ALLOW_REGISTER` (`0` = only the
+admin creates accounts).
+
+**Update:** one line over SSH, from any folder:
+`curl -fsSL https://raw.githubusercontent.com/pctecnikk/qrpanel/main/update.sh | bash`.
+Your data, `.env` and `docker-compose.yaml` are kept.
+
+**Ready-made image** (no build): `ghcr.io/pctecnikk/qrpanel:latest`, for PC (amd64) and
+Raspberry Pi (arm64 and arm/v7).
+
+**Android app:** download **QRPanel.apk** from
+[Releases](https://github.com/pctecnikk/qrpanel/releases) (Android 7 or newer). The first time
+it asks for your server address.
+
+**Uninstall:** `cd qrpanel && bash uninstall.sh`. It asks before deleting anything, offers a
+backup, removes the Docker container and image, and asks whether to delete your data too (you
+must type `BORRAR` to confirm). The install, update and uninstall scripts speak Spanish.
+
+**Adding a language:** the web texts are in `app/static/js/i18n-en.json` (the keys are the
+Spanish texts) and the public pages in `app/i18n.py`.
+
+**Screenshots:**
+
+| | |
+|---|---|
+| ![Create a QR](docs/capturas/crear-en.png) | <img src="docs/capturas/carta-movil-en.png" width="260" alt="Restaurant menu on the phone"> |
+| **Create a QR** with live preview and scan check | **Restaurant menu** opened from the QR |
+
+</details>
+
 > 📖 **[Guía paso a paso con capturas](docs/GUIA.md)**: todo lo que se puede hacer, pantalla a pantalla.
 
 ![Crear un QR](docs/capturas/crear.png)
+
+![Páginas para negocios: carta, hotel, oficina, tienda, evento e inmobiliaria](docs/capturas/negocios.png)
 
 | | |
 |---|---|
@@ -75,6 +168,10 @@ Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 | **Imprimir en 3D**, con vista previa | **QR para tu mascota** |
 | ![Estadísticas de un QR dinámico](docs/capturas/estadisticas-qr.png) | ![Caducidad y PIN](docs/capturas/dinamico.png) |
 | **Estadísticas** de cada QR dinámico | **Caducidad y PIN** |
+| ![Expositor de reseñas en 3D](docs/capturas/resenas-expositor.png) | ![QR por mesa](docs/capturas/qr-por-mesa.png) |
+| **Expositor de reseñas** para imprimir en 3D | **QR por mesa** para la carta |
+| ![Cartel «Se busca»](docs/capturas/cartel-mascota.png) | |
+| **Cartel «Se busca»** si se pierde tu mascota | |
 
 ![En el móvil y en la app de Android](docs/capturas/movil.png)
 
@@ -97,7 +194,7 @@ Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 </details>
 
 **Material gráfico:** portadas para redes, imagen para GitHub, icono y avatar en
-[`docs/promo/`](docs/promo/) (lista completa en la [guía](docs/GUIA.md#16-material-gráfico-portadas-icono-y-avatar)).
+[`docs/promo/`](docs/promo/) (lista completa en la [guía](docs/GUIA.md#17-material-gráfico-portadas-icono-y-avatar)).
 
 ---
 
@@ -222,7 +319,7 @@ Es la misma web de QRPanel dentro de una app, así que siempre está al día con
    Dale permiso y toca **Instalar**. Si aparece *Play Protect*, toca **Más detalles →
    Instalar de todas formas**: sale porque la app no viene de Google Play.
 3. Abre **QRPanel**. Te pide dos direcciones:
-   - **En casa (wifi):** la IP de tu servidor, por ejemplo `192.168.1.50:8091`.
+   - **En casa (wifi):** la IP de tu servidor, por ejemplo `192.168.1.x:8091`.
    - **Fuera de casa:** tu dominio, por ejemplo `https://qr.midominio.com` (mira
      [Acceso desde fuera de casa](#8-acceso-desde-fuera-de-casa)). Si no tienes, déjala vacía.
 4. Entra con tu **usuario y contraseña**, los mismos de la web.
@@ -252,8 +349,8 @@ QRPanel tiene **dos números de versión**, cada uno con su propio ritmo:
 
 | Qué | Dónde está el número | Dónde lo ves | Novedades |
 |---|---|---|---|
-| **Web (servidor)** | [`app/VERSION`](app/VERSION) | abajo de cada página y en **Ajustes → Acerca de** («Web 1.0.2») | [`CHANGELOG.md`](CHANGELOG.md) |
-| **App Android** | `versionName` en [`android/src/main/AndroidManifest.xml`](android/src/main/AndroidManifest.xml) | abajo de cada página («App 1.0.0», solo dentro de la app) y en el menú *Atrás* | [`novedades.md`](android/src/main/res/raw/novedades.md) |
+| **Web (servidor)** | [`app/VERSION`](app/VERSION) | abajo de cada página y en **Ajustes → Acerca de** («Web 1.0.14») | [`CHANGELOG.md`](CHANGELOG.md) |
+| **App Android** | `versionName` en [`android/src/main/AndroidManifest.xml`](android/src/main/AndroidManifest.xml) | abajo de cada página («App 1.0.1», solo dentro de la app) y en el menú *Atrás* | [`novedades.md`](android/src/main/res/raw/novedades.md) |
 
 **Cómo se numeran:** siempre de poco en poco, subiendo solo el último número en cada
 actualización: la web 1.0.0 → 1.0.1 → 1.0.2 → 1.0.3… y la app igual, 1.0.0 → 1.0.1 → 1.0.2…
@@ -332,7 +429,7 @@ Ejemplo con Caddy:
 
 ```
 qr.midominio.com {
-    reverse_proxy 192.168.1.50:8091
+    reverse_proxy IP-DE-TU-SERVIDOR:8091
 }
 ```
 

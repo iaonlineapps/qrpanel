@@ -36,7 +36,7 @@ export const ServerStore = {
   remove: (id) => api("DELETE", `/api/qrs/${id}`),
   share: (id) => api("POST", `/api/qrs/${id}/share`),
   unshare: (id) => api("DELETE", `/api/qrs/${id}/share`),
-  shareImage: (id, blob) => fetch(`/api/qrs/${id}/image`, { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "image/png" }, body: blob }).then((r) => r.ok),
+  shareImage: (id, blob) => fetch(`/api/qrs/${id}/image`, { method: "PUT", credentials: "same-origin", headers: { "Content-Type": blob.type || "image/png" }, body: blob }).then((r) => r.ok),
   qrStats: (id, days = 30) => api("GET", `/api/qrs/${id}/stats?days=${days}`),
   stats: () => api("GET", "/api/stats"),
   logos: () => api("GET", "/api/logos"),
@@ -53,6 +53,7 @@ export const ServerStore = {
   delUser: (id) => api("DELETE", `/api/admin/users/${id}`),
   saveBrand: (b) => api("POST", "/api/admin/brand", b),
   saveSettings: (s) => api("POST", "/api/admin/settings", s),
+  setAvatar: (data) => api("PUT", "/api/me/avatar", { data }),
 };
 
 // --- modo local (IndexedDB) -------------------------------------------------------
