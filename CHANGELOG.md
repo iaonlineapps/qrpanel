@@ -4,7 +4,7 @@ La versión de la web está en [`app/VERSION`](app/VERSION) y se ve en **Ajustes
 La app de Android tiene su propio número y sus novedades en
 [`android/src/main/res/raw/novedades.md`](android/src/main/res/raw/novedades.md).
 
-## 1.2.0
+## 1.0.2
 
 - **QR para mascotas (perros, gatos…):** ficha con foto, nombre, raza, señas, microchip,
   salud, carácter y los datos del dueño. Quien encuentra a la mascota ve la ficha con botones
@@ -12,7 +12,7 @@ La app de Android tiene su propio número y sus novedades en
   Se puede marcar como **perdida** (aviso grande en rojo) y poner recompensa. Los datos se
   cambian sin reimprimir la placa. Va genial con la placa 3D con anilla de llavero.
 
-## 1.1.0
+## 1.0.1
 
 - **Imprimir en 3D:** descarga el QR como modelo 3D en **3MF de dos colores**, **STL** o dos
   STL (base y módulos). Vista previa 3D que se gira y se acerca, y que cambia al momento al

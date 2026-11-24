@@ -234,11 +234,11 @@ QRPanel tiene **dos números de versión**, cada uno con su propio ritmo:
 
 | Qué | Dónde está el número | Dónde lo ves | Novedades |
 |---|---|---|---|
-| **Web (servidor)** | [`app/VERSION`](app/VERSION) | **Ajustes → Acerca de** («Web 1.0.0») | [`CHANGELOG.md`](CHANGELOG.md) |
-| **App Android** | `versionName` en [`android/src/main/AndroidManifest.xml`](android/src/main/AndroidManifest.xml) | **Ajustes → Acerca de** («App 1.0», solo dentro de la app) y en el menú *Atrás* | [`novedades.md`](android/src/main/res/raw/novedades.md) |
+| **Web (servidor)** | [`app/VERSION`](app/VERSION) | abajo de cada página y en **Ajustes → Acerca de** («Web 1.0.2») | [`CHANGELOG.md`](CHANGELOG.md) |
+| **App Android** | `versionName` en [`android/src/main/AndroidManifest.xml`](android/src/main/AndroidManifest.xml) | abajo de cada página («App 1.0.0», solo dentro de la app) y en el menú *Atrás* | [`novedades.md`](android/src/main/res/raw/novedades.md) |
 
-**Cómo se numeran:** de poco en poco, subiendo el último número. La web va 1.0.0 → 1.0.1 →
-1.0.2… y la app 1.0 → 1.0.1 → 1.0.2… Solo se sube el número del medio para un cambio grande.
+**Cómo se numeran:** siempre de poco en poco, subiendo solo el último número en cada
+actualización: la web 1.0.0 → 1.0.1 → 1.0.2 → 1.0.3… y la app igual, 1.0.0 → 1.0.1 → 1.0.2…
 Si un cambio solo toca la web, la app no cambia de versión (y al revés).
 
 <details>
@@ -265,7 +265,7 @@ KEYSTORE=mi-clave.jks KS_PASS=tu-contraseña KEY_ALIAS=qrpanel ./android/build.s
 **Sacar una versión nueva de la app:** sube `versionCode` (uno más) y `versionName` en
 `android/src/main/AndroidManifest.xml`, apunta las novedades arriba del todo en
 `android/src/main/res/raw/novedades.md`, compila con tu clave, copia la APK a
-`android/dist/QRPanel.apk` y súbelo a `main`. GitHub crea solo la Release `android-vX.Y`
+`android/dist/QRPanel.apk` y súbelo a `main`. GitHub crea solo la Release `android-vX.Y.Z`
 con la APK y las novedades.
 
 **Sacar una versión nueva de la web:** cambia el número de `app/VERSION`, apunta las

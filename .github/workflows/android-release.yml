@@ -1,4 +1,4 @@
-# Publica la app de Android como Release (etiqueta android-vX.Y) cada vez que cambia
+# Publica la app de Android como Release (etiqueta android-vX.Y.Z) cada vez que cambia
 # android/dist/QRPanel.apk en main. La version sale de android/src/main/AndroidManifest.xml.
 # Usa la APK ya firmada, asi la clave de firma nunca tiene que estar en GitHub.
 name: Publicar app Android

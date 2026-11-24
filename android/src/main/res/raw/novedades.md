@@ -1,6 +1,6 @@
 # Novedades de la app QRPanel para Android
 
-## Versión 1.0
+## Versión 1.0.0
 
 - Primera versión de la app.
 - Entra en tu QRPanel con tu usuario y contraseña.
