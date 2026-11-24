@@ -119,7 +119,7 @@ Las webs de QR suelen cobrar por esto, y si dejas de pagar tus QR impresos dejan
 funcionar. Con QRPanel son tuyos para siempre.
 
 > **Importante:** para que un QR dinámico funcione en cualquier móvil, tu QRPanel tiene que
-> verse desde internet (mira [Acceso desde fuera de casa](#7-acceso-desde-fuera-de-casa)) y
+> verse desde internet (mira [Acceso desde fuera de casa](#8-acceso-desde-fuera-de-casa)) y
 > tienes que poner tu **dirección pública** antes de imprimirlo. Si no, solo funcionará
 > conectado a tu WiFi.
 
@@ -218,7 +218,7 @@ Es la misma web de QRPanel dentro de una app, así que siempre está al día con
 3. Abre **QRPanel**. Te pide dos direcciones:
    - **En casa (wifi):** la IP de tu servidor, por ejemplo `192.168.1.50:8091`.
    - **Fuera de casa:** tu dominio, por ejemplo `https://qr.midominio.com` (mira
-     [Acceso desde fuera de casa](#7-acceso-desde-fuera-de-casa)). Si no tienes, déjala vacía.
+     [Acceso desde fuera de casa](#8-acceso-desde-fuera-de-casa)). Si no tienes, déjala vacía.
 4. Entra con tu **usuario y contraseña**, los mismos de la web.
 
 **Casa y fuera, sin tocar nada:** cada vez que abres la app prueba primero la dirección de
@@ -285,7 +285,26 @@ novedades en `CHANGELOG.md` y súbelo. La imagen Docker se publica sola.
 
 </details>
 
-## 6. Comandos útiles
+## 6. Desinstalar
+
+Un solo comando, desde la carpeta de QRPanel. Pregunta antes de borrar nada y ofrece una
+copia de seguridad:
+
+```bash
+bash uninstall.sh
+```
+
+1. Pide que escribas `DESINSTALAR` para seguir (si no, no toca nada).
+2. Ofrece **copia de seguridad** de los datos en `~/qrpanel-copia-FECHA.tar.gz`.
+3. Para y borra el **contenedor** y la **imagen** de Docker.
+4. Pregunta si borrar también los **datos** (la carpeta `DATA_DIR`: QR, logos, usuarios y
+   estadísticas). Hay que escribir `BORRAR` para confirmarlo; si dices que no, se conservan.
+5. Pregunta si borrar la **carpeta del programa**.
+
+Después quita el recurso de QRPanel en tu proxy si lo tenías. La app de Android se
+desinstala como cualquier otra, desde el móvil.
+
+## 7. Comandos útiles
 
 ```bash
 docker compose ps                 # estado
@@ -294,7 +313,7 @@ docker compose restart            # reiniciar
 docker compose down               # parar
 ```
 
-## 7. Acceso desde fuera de casa
+## 8. Acceso desde fuera de casa
 
 Para que los QR dinámicos funcionen con datos móviles, QRPanel tiene que verse desde
 internet con **https**. No abras el puerto 8091 directamente en el router: usa un proxy
@@ -310,7 +329,7 @@ qr.midominio.com {
 }
 ```
 
-## 8. Seguridad
+## 9. Seguridad
 
 - Las contraseñas se guardan como hash PBKDF2, nunca tal cual.
 - Tras varios intentos fallidos de entrar se bloquea un rato a quien lo intenta.
@@ -326,7 +345,7 @@ qr.midominio.com {
   visitantes únicos. Se borran solas a los dos años.
 - La web lleva una política de seguridad estricta (CSP) y no carga nada de fuera.
 
-## 9. Aviso legal y privacidad (si lo abres a otras personas)
+## 10. Aviso legal y privacidad (si lo abres a otras personas)
 
 Si solo lo usas tú o tu familia, no tienes que hacer nada. Si dejas que otras personas
 creen cuentas o publicas QR dinámicos para el público, ten en cuenta que **quien instala
@@ -345,7 +364,7 @@ QRPanel es el responsable** de lo que se hace con él:
 - **Marcas:** QRPanel no incluye logos de otras empresas. Los iconos rápidos son dibujos
   genéricos propios. Si un usuario sube el logo de otra marca, la responsabilidad es suya.
 
-## 10. Licencia
+## 11. Licencia
 
 QRPanel se publica con la licencia [PolyForm Noncommercial 1.0.0](LICENSE.md). En resumen
 (el texto que vale es el de la licencia):
