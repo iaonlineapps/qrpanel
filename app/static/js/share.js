@@ -1,4 +1,5 @@
 // Pagina publica de un QR compartido: se ve y se descarga sin cuenta.
+import "./i18n.js";
 import { render, svgToCanvas } from "./qr.js";
 import { parse, TYPES } from "./content.js";
 import { makePdf } from "./pdf.js";
@@ -26,7 +27,7 @@ async function main() {
     <div class="stage"><div class="qrbox pop">${svg}</div></div>
     <div class="pad steps" style="gap:12px">
       <div><h1 style="margin:0;font-size:24px;letter-spacing:-.02em">${esc(q.name)}</h1>
-        <div class="small muted">${icon(TYPES[q.kind]?.icon || "qr", "sm")} ${esc(TYPES[q.kind]?.name || "QR")} · compartido por <b>${esc(q.owner)}</b></div></div>
+        <div class="small muted">${icon(TYPES[q.kind]?.icon || "qr", "sm")} ${esc(TYPES[q.kind]?.name || "QR")} · compartido por ${q.owner_avatar ? `<img class="owner-av" src="${esc(q.owner_avatar)}" alt="">` : ""}<b>${esc(q.owner)}</b></div></div>
       ${isUrl ? `<a class="btn ghost" href="${esc(q.content)}" target="_blank" rel="noopener noreferrer" style="justify-content:flex-start">${icon("link")}<span style="overflow:hidden;text-overflow:ellipsis">${esc(q.content)}</span></a>` : p.kind === "wifi" ? `<div class="small">Red WiFi: <b>${esc(p.fields.ssid)}</b></div>` : ""}
       <div class="row"><select id="fmt" class="input" style="width:auto"><option value="png">PNG</option><option value="svg">SVG</option><option value="jpg">JPG</option><option value="pdf">PDF</option></select>
         <button class="btn primary grow" id="dl">${icon("download")}Descargar</button></div>

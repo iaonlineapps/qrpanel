@@ -83,6 +83,8 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences("qrpanel", MODE_PRIVATE);
+        String l = prefs.getString("lang", "");
+        EN = l.isEmpty() ? !"es".equals(java.util.Locale.getDefault().getLanguage()) : "en".equals(l);
         root = new FrameLayout(this);
         root.setBackgroundColor(BG);
         setContentView(root);
@@ -154,12 +156,12 @@ public class MainActivity extends Activity {
         TextView title = text(box, "QRPanel", 28, TEXT, true);
         title.setGravity(Gravity.CENTER);
         title.setPadding(0, dp(10), 0, dp(4));
-        TextView sub = text(box, "Tu propio generador de códigos QR", 15, MUTED, false);
+        TextView sub = text(box, t("Tu propio generador de códigos QR", "Your own QR code generator"), 15, MUTED, false);
         sub.setGravity(Gravity.CENTER);
         sub.setPadding(0, 0, 0, dp(18));
 
-        TextView need = text(box, "Esta app entra en tu propio servidor QRPanel (una Raspberry Pi o un ordenador con Docker). "
-                + "Sin servidor no funciona. ¿Aún no lo tienes? Toca aquí para ver cómo instalarlo.", 14, 0xFFFBBF24, false);
+        TextView need = text(box, t("Esta app entra en tu propio servidor QRPanel (una Raspberry Pi o un ordenador con Docker). ", "This app connects to your own QRPanel server (a Raspberry Pi or a computer with Docker). ")
+                + t("Sin servidor no funciona. ¿Aún no lo tienes? Toca aquí para ver cómo instalarlo.", "It doesn't work without a server. Don't have one yet? Tap here to see how to install it."), 14, 0xFFFBBF24, false);
         need.setPadding(dp(14), dp(12), dp(14), dp(12));
         GradientDrawable nbg = new GradientDrawable();
         nbg.setColor(0xFF33270B); nbg.setCornerRadius(dp(12));
@@ -168,18 +170,18 @@ public class MainActivity extends Activity {
             openExternal("https://github.com/pctecnikk/qrpanel#2-instalar");
         } });
 
-        final EditText home = field(box, "En casa (con tu wifi)", "192.168.1.50:8091", prefs.getString(K_HOME, ""));
-        text(box, "La IP de tu servidor y el puerto. Solo funciona conectado a la wifi de casa.", 13, MUTED, false).setPadding(0, dp(6), 0, 0);
-        final EditText out = field(box, "Fuera de casa (tu dominio)", "https://qr.midominio.com", prefs.getString(K_OUT, ""));
-        text(box, "Opcional. Tu dirección pública con https, para usarla con datos móviles. "
-                + "Si pones las dos, la app usa sola la que funcione.", 13, MUTED, false).setPadding(0, dp(6), 0, 0);
+        final EditText home = field(box, t("En casa (con tu wifi)", "At home (on your WiFi)"), "192.168.1.x:8091", prefs.getString(K_HOME, ""));
+        text(box, t("La IP de tu servidor y el puerto. Solo funciona conectado a la wifi de casa.", "Your server's IP and port. Only works on your home WiFi."), 13, MUTED, false).setPadding(0, dp(6), 0, 0);
+        final EditText out = field(box, t("Fuera de casa (tu dominio)", "Away from home (your domain)"), "https://qr.midominio.com", prefs.getString(K_OUT, ""));
+        text(box, t("Opcional. Tu dirección pública con https, para usarla con datos móviles. ", "Optional. Your public https address, to use it on mobile data. ")
+                + t("Si pones las dos, la app usa sola la que funcione.", "If you set both, the app uses whichever works."), 13, MUTED, false).setPadding(0, dp(6), 0, 0);
 
         final TextView status = text(box, message != null ? message : "", 14, 0xFFFB7185, false);
         status.setGravity(Gravity.CENTER);
         status.setPadding(0, dp(14), 0, dp(10));
 
         final Button go = new Button(this);
-        go.setText("Conectar");
+        go.setText(t("Conectar", "Connect"));
         go.setTextColor(Color.WHITE);
         go.setAllCaps(false);
         go.setTextSize(16);
@@ -189,10 +191,10 @@ public class MainActivity extends Activity {
         box.addView(go, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
         go.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
             final String h = normalize(home.getText().toString()), o = normalize(out.getText().toString());
-            if (h == null && o == null) { status.setText("Escribe al menos una dirección."); return; }
+            if (h == null && o == null) { status.setText(t("Escribe al menos una dirección.", "Enter at least one address.")); return; }
             go.setEnabled(false);
             status.setTextColor(MUTED);
-            status.setText("Comprobando…");
+            status.setText(t("Comprobando…", "Checking…"));
             new Thread(new Runnable() { @Override public void run() {
                 final String eh = h != null ? check(h, 6000) : null, eo = o != null ? check(o, 8000) : null;
                 main.post(new Runnable() { @Override public void run() {
@@ -202,27 +204,27 @@ public class MainActivity extends Activity {
                         prefs.edit().putString(K_HOME, h == null ? "" : h).putString(K_OUT, o == null ? "" : o).apply();
                         showWeb(okH ? h : o, null);
                         if (h != null && o != null && !(okH && okO))
-                            toast(okH ? "La dirección de fuera no responde ahora; se guardará igual." : "Ahora no estás en la wifi de casa: uso la de fuera.");
+                            toast(okH ? t("La dirección de fuera no responde ahora; se guardará igual.", "The away address isn't responding now; it will be saved anyway.") : t("Ahora no estás en la wifi de casa: uso la de fuera.", "You're not on your home WiFi now: using the away one."));
                         return;
                     }
                     status.setTextColor(0xFFFB7185);
                     status.setText(eh != null ? eh : eo);
                     new AlertDialog.Builder(MainActivity.this)
-                            .setTitle("No se ha podido comprobar")
-                            .setMessage((eh != null ? eh : eo) + "\n\n¿Quieres guardarla de todas formas?")
-                            .setPositiveButton("Guardar", new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int w) {
+                            .setTitle(t("No se ha podido comprobar", "Couldn't check"))
+                            .setMessage((eh != null ? eh : eo) + t("\n\n¿Quieres guardarla de todas formas?", "\n\nDo you want to save it anyway?"))
+                            .setPositiveButton(t("Guardar", "Save"), new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int w) {
                                 prefs.edit().putString(K_HOME, h == null ? "" : h).putString(K_OUT, o == null ? "" : o).apply();
                                 showWeb(h != null ? h : o, null);
                             } })
-                            .setNegativeButton("Corregir", null).show();
+                            .setNegativeButton(t("Corregir", "Fix"), null).show();
                 } });
             } }).start();
         } });
 
-        TextView help = text(box, "\nDespués entras con tu usuario y contraseña de QRPanel. Para cambiar las direcciones, "
-                + "pulsa Atrás en la pantalla principal o mantén pulsado el icono y elige «Cambiar servidor».", 13, MUTED, false);
+        TextView help = text(box, t("\nDespués entras con tu usuario y contraseña de QRPanel. Para cambiar las direcciones, ", "\nThen sign in with your QRPanel username and password. To change the addresses, ")
+                + t("pulsa Atrás en la pantalla principal o mantén pulsado el icono y elige «Cambiar servidor».", "press Back on the main screen or long-press the icon and choose «Change server»."), 13, MUTED, false);
         help.setGravity(Gravity.CENTER);
-        TextView ver = text(box, "\nApp versión " + version(this) + " · Ver novedades", 13, 0xFFA78BFA, false);
+        TextView ver = text(box, t("\nApp versión ", "\nApp version ") + version(this) + t(" · Ver novedades", " · What's new"), 13, 0xFFA78BFA, false);
         ver.setGravity(Gravity.CENTER);
         ver.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { showNews(); } });
         root.addView(scroll);
@@ -246,17 +248,17 @@ public class MainActivity extends Activity {
             c.setConnectTimeout(timeout);
             c.setReadTimeout(timeout);
             int code = c.getResponseCode();
-            if (code != 200) return "El servidor ha respondido con un error (" + code + ").";
+            if (code != 200) return t("El servidor ha respondido con un error (", "The server replied with an error (") + code + ").";
             BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"));
             String body = r.readLine();
             r.close();
-            return body != null && body.contains("\"qrpanel\"") ? null : "Esa dirección responde, pero no es un QRPanel.";
+            return body != null && body.contains("\"qrpanel\"") ? null : t("Esa dirección responde, pero no es un QRPanel.", "That address responds, but it isn't a QRPanel.");
         } catch (javax.net.ssl.SSLException e) {
-            return "Problema con el certificado https del servidor.";
+            return t("Problema con el certificado https del servidor.", "Problem with the server's https certificate.");
         } catch (java.net.UnknownHostException e) {
-            return "No encuentro esa dirección. Revisa que esté bien escrita.";
+            return t("No encuentro esa dirección. Revisa que esté bien escrita.", "I can't find that address. Check it's written correctly.");
         } catch (Exception e) {
-            return "No puedo conectar. Si es la IP de casa, mira que estés en la wifi de casa.";
+            return t("No puedo conectar. Si es la IP de casa, mira que estés en la wifi de casa.", "I can't connect. If it's the home IP, check you're on your home WiFi.");
         } finally {
             if (c != null) c.disconnect();
         }
@@ -347,7 +349,7 @@ public class MainActivity extends Activity {
                 if (p.isCaptureEnabled() && !has(Manifest.permission.CAMERA)) {
                     requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_PERM_CAMERA);
                     fileCb.onReceiveValue(null); fileCb = null;
-                    toast("Da permiso a la cámara y vuelve a pulsar.");
+                    toast(t("Da permiso a la cámara y vuelve a pulsar.", "Allow the camera and tap again."));
                     return true;
                 }
                 openChooser(p.isCaptureEnabled());
@@ -364,7 +366,7 @@ public class MainActivity extends Activity {
         Intent pick = new Intent(Intent.ACTION_GET_CONTENT);
         pick.addCategory(Intent.CATEGORY_OPENABLE);
         pick.setType("image/*");
-        Intent chooser = Intent.createChooser(pick, "Elige una imagen");
+        Intent chooser = Intent.createChooser(pick, t("Elige una imagen", "Choose an image"));
         photoUri = null;
         if (has(Manifest.permission.CAMERA)) {
             try {
@@ -380,7 +382,7 @@ public class MainActivity extends Activity {
             } catch (Exception e) { photoUri = null; }
         }
         try { startActivityForResult(chooser, REQ_FILE); }
-        catch (ActivityNotFoundException e) { fileCb.onReceiveValue(null); fileCb = null; toast("No hay ninguna app para elegir imágenes."); }
+        catch (ActivityNotFoundException e) { fileCb.onReceiveValue(null); fileCb = null; toast(t("No hay ninguna app para elegir imágenes.", "There is no app to choose images.")); }
     }
 
     @Override
@@ -409,7 +411,7 @@ public class MainActivity extends Activity {
             geoCb.invoke(geoOrigin, ok, false);
             geoCb = null;
         } else if (code == REQ_PERM_STORAGE && afterStoragePerm != null) {
-            if (ok) afterStoragePerm.run(); else toast("Sin permiso no puedo guardar en Descargas.");
+            if (ok) afterStoragePerm.run(); else toast(t("Sin permiso no puedo guardar en Descargas.", "Without permission I can't save to Downloads."));
             afterStoragePerm = null;
         }
     }
@@ -419,11 +421,11 @@ public class MainActivity extends Activity {
         errorShown = true;
         final String other = base.equals(prefs.getString(K_HOME, "")) ? prefs.getString(K_OUT, "") : prefs.getString(K_HOME, "");
         AlertDialog.Builder b = new AlertDialog.Builder(this)
-                .setTitle("No se puede conectar")
-                .setMessage("QRPanel no responde en " + base + ".\n\nSi es la dirección de casa, comprueba que estás en tu wifi.")
-                .setPositiveButton("Reintentar", new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int w) { errorShown = false; web.reload(); } })
-                .setNegativeButton("Cambiar servidor", new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int w) { showSetup(null); } });
-        if (!other.isEmpty()) b.setNeutralButton("Usar la otra", new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int w) { showWeb(other, null); } });
+                .setTitle(t("No se puede conectar", "Can't connect"))
+                .setMessage(t("QRPanel no responde en ", "QRPanel isn't responding at ") + base + t(".\n\nSi es la dirección de casa, comprueba que estás en tu wifi.", ".\n\nIf it's the home address, check you're on your WiFi."))
+                .setPositiveButton(t("Reintentar", "Retry"), new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int w) { errorShown = false; web.reload(); } })
+                .setNegativeButton(t("Cambiar servidor", "Change server"), new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int w) { showSetup(null); } });
+        if (!other.isEmpty()) b.setNeutralButton(t("Usar la otra", "Use the other one"), new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int w) { showWeb(other, null); } });
         b.setCancelable(false).show();
     }
 
@@ -447,12 +449,18 @@ public class MainActivity extends Activity {
                 Intent i = new Intent(Intent.ACTION_SEND);
                 i.setType("text/plain");
                 i.putExtra(Intent.EXTRA_TEXT, text);
-                startActivity(Intent.createChooser(i, "Compartir"));
+                startActivity(Intent.createChooser(i, t("Compartir", "Share")));
             } });
         }
 
         @JavascriptInterface public void changeServer() {
             main.post(new Runnable() { @Override public void run() { showSetup(null); } });
+        }
+
+        @JavascriptInterface public void setLang(final String l) {
+            if (!"es".equals(l) && !"en".equals(l)) return;
+            prefs.edit().putString("lang", l).apply();
+            EN = "en".equals(l);
         }
 
         @JavascriptInterface public void news() {
@@ -488,9 +496,9 @@ public class MainActivity extends Activity {
                 o.write(data);
                 o.close();
             }
-            toast("Guardado en Descargas/QRPanel: " + name);
+            toast(t("Guardado en Descargas/QRPanel: ", "Saved in Downloads/QRPanel: ") + name);
         } catch (Exception e) {
-            toast("No se pudo guardar el archivo.");
+            toast(t("No se pudo guardar el archivo.", "Couldn't save the file."));
         }
     }
 
@@ -508,18 +516,22 @@ public class MainActivity extends Activity {
             i.putExtra(Intent.EXTRA_STREAM, Archivos.uri(f));
             if (text != null && !text.isEmpty()) i.putExtra(Intent.EXTRA_TEXT, text);
             i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(Intent.createChooser(i, "Compartir QR"));
+            startActivity(Intent.createChooser(i, t("Compartir QR", "Share QR")));
         } catch (Exception e) {
-            toast("No se pudo compartir.");
+            toast(t("No se pudo compartir.", "Couldn't share."));
         }
     }
 
     private void openExternal(String url) {
         try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
-        catch (ActivityNotFoundException e) { toast("No hay ninguna app para abrir esto."); }
+        catch (ActivityNotFoundException e) { toast(t("No hay ninguna app para abrir esto.", "There is no app to open this.")); }
     }
 
     // ------------------------------------------------------------------ Varios
+
+    /** Idioma de la app: el elegido en la web (Ajustes → Idioma) o el del móvil. */
+    static boolean EN = false;
+    static String t(String es, String en) { return EN ? en : es; }
 
     private void showNews() {
         StringBuilder sb = new StringBuilder();
@@ -535,9 +547,9 @@ public class MainActivity extends Activity {
             }
             r.close();
         } catch (Exception ignored) { }
-        new AlertDialog.Builder(this).setTitle("Novedades · app " + version(this))
+        new AlertDialog.Builder(this).setTitle(t("Novedades · app ", "What's new · app ") + version(this))
                 .setMessage(sb.toString().trim())
-                .setPositiveButton("Vale", null)
+                .setPositiveButton(t("Vale", "OK"), null)
                 .setNeutralButton("Ver en GitHub", new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int w) {
                     openExternal("https://github.com/pctecnikk/qrpanel/releases");
                 } }).show();
@@ -548,7 +560,7 @@ public class MainActivity extends Activity {
         if (web != null && web.canGoBack()) { web.goBack(); return; }
         if (web == null) { super.onBackPressed(); return; }
         new AlertDialog.Builder(this).setTitle("QRPanel · app " + version(this))
-                .setItems(new CharSequence[]{"Salir", "Cambiar servidor", "Recargar", "Novedades"}, new DialogInterface.OnClickListener() {
+                .setItems(new CharSequence[]{t("Salir", "Exit"), t("Cambiar servidor", "Change server"), t("Recargar", "Reload"), t("Novedades", "What's new")}, new DialogInterface.OnClickListener() {
                     @Override public void onClick(DialogInterface d, int which) {
                         if (which == 0) finish();
                         else if (which == 1) showSetup(null);

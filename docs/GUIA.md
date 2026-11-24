@@ -12,15 +12,16 @@ primero el [README](../README.md).
 5. [QR dinámicos: cambiar el destino sin reimprimir](#5-qr-dinámicos-cambiar-el-destino-sin-reimprimir)
 6. [Caducidad y PIN](#6-caducidad-y-pin)
 7. [QR para tu mascota](#7-qr-para-tu-mascota)
-8. [Imprimir en 3D (STL y 3MF)](#8-imprimir-en-3d-stl-y-3mf)
-9. [Biblioteca](#9-biblioteca)
-10. [Estadísticas](#10-estadísticas)
-11. [Escanear un QR](#11-escanear-un-qr)
-12. [Muchos QR de golpe (por lotes)](#12-muchos-qr-de-golpe-por-lotes)
-13. [Ajustes: dirección pública, tu marca y usuarios](#13-ajustes-dirección-pública-tu-marca-y-usuarios)
-14. [En el móvil y la app de Android](#14-en-el-móvil-y-la-app-de-android)
-15. [Versiones](#15-versiones)
-16. [Material gráfico (portadas, icono y avatar)](#16-material-gráfico-portadas-icono-y-avatar)
+8. [Para tu negocio: carta, reseñas, hotel, oficina, tienda, eventos e inmobiliaria](#8-para-tu-negocio-carta-reseñas-hotel-oficina-tienda-eventos-e-inmobiliaria)
+9. [Imprimir en 3D (STL y 3MF)](#9-imprimir-en-3d-stl-y-3mf)
+10. [Biblioteca](#10-biblioteca)
+11. [Estadísticas](#11-estadísticas)
+12. [Escanear un QR](#12-escanear-un-qr)
+13. [Muchos QR de golpe (por lotes)](#13-muchos-qr-de-golpe-por-lotes)
+14. [Ajustes: dirección pública, tu marca y usuarios](#14-ajustes-dirección-pública-tu-marca-y-usuarios)
+15. [En el móvil y la app de Android](#15-en-el-móvil-y-la-app-de-android)
+16. [Versiones](#16-versiones)
+17. [Material gráfico (portadas, icono y avatar)](#17-material-gráfico-portadas-icono-y-avatar)
 
 ---
 
@@ -133,12 +134,85 @@ mapa por WhatsApp):
 
 <img src="capturas/mascota-ficha.png" width="320" alt="Ficha pública de la mascota">
 
+> **Para que llegue la ubicación hace falta https.** Los móviles solo dan la ubicación en
+> páginas `https://`. Pon tu dirección pública con dominio en **Ajustes** antes de imprimir la
+> placa (mira el apartado 14). Si el móvil de quien la encuentra no da la ubicación, la ficha
+> le deja **escribir dónde está** y mandártelo igualmente por WhatsApp.
+
 - Si se pierde, activa **Se ha perdido** y saldrá arriba un **aviso grande en rojo**.
 - Puedes cambiar los datos (un teléfono nuevo, otra foto) **sin reimprimir la placa**.
-- Con la [impresión en 3D](#8-imprimir-en-3d-stl-y-3mf) y la **anilla de llavero** te
+- **Cartel «Se busca»**: si se pierde, pulsa **Cartel «Se busca»** (en el editor o en el menú
+  de la placa en la Biblioteca). Sale un cartel con su foto, sus señas, la recompensa, tu
+  teléfono y el QR de su ficha: en **PDF A4** con tiras recortables para pegarlo por la calle,
+  y en **post cuadrado** o **historia** para WhatsApp, Telegram, Instagram, TikTok o Facebook.
+  Tu teléfono no sale en el cartel salvo que lo actives: así solo lo ve quien escanea el QR.
+
+  ![Cartel «Se busca»](capturas/cartel-mascota.png)
+- Con la [impresión en 3D](#9-imprimir-en-3d-stl-y-3mf) y la **anilla de llavero** te
   haces la placa para el collar.
 
-## 8. Imprimir en 3D (STL y 3MF)
+## 8. Para tu negocio: carta, reseñas, hotel, oficina, tienda, eventos e inmobiliaria
+
+QRPanel trae tipos de QR pensados para negocios. Casi todos abren **una página en el móvil que
+pinta tu servidor**: la cambias cuando quieras (un precio, un horario, la carta entera) **sin
+reimprimir** el QR. Todos son dinámicos, así que en **Estadísticas** ves cuántas veces se escanean.
+
+![Las páginas de los negocios en el móvil](capturas/negocios.png)
+
+**Restaurante (la carta).** Escribe la carta como texto sencillo: `# Entrantes` para empezar una
+sección y una línea por plato con `Nombre | precio | alérgenos`; la línea de debajo es su
+descripción. Los alérgenos salen con icono. Añade horario, WiFi (con botón de **Copiar**
+contraseña), teléfono, dirección, Instagram y web.
+
+- **QR por mesa:** en el editor o en el menú de la carta en la Biblioteca. Generas las tarjetas
+  de la mesa 1 a la 20 (o las que quieras) en **PDF, 6 por folio A4**, o en un ZIP con un PNG por
+  mesa. Todas abren la misma carta, pero la página dice «Estás en la mesa 5» y en Estadísticas
+  sale **Por mesa**.
+
+![QR por mesa](capturas/qr-por-mesa.png)
+
+**Reseñas.** Pega el enlace para dejar la reseña en Google (en tu Perfil de empresa → «Pedir
+reseñas»), TripAdvisor, Facebook o donde quieras. Quien escanee va directo a escribirla.
+
+- **Expositor de mesa 3D:** el botón **Expositor 3D** (editor y Biblioteca) genera una placa de
+  color con «DEJA TU RESEÑA», un icono o **tu logo**, 5 estrellas y **tu QR en relieve**, más una
+  base con ranura para que se tenga de pie. **Todas las aristas están redondeadas** para que no
+  pinche. Elige tamaño (70, 85 o 100 mm de ancho) y color de placa, y descarga el **3MF
+  multicolor** (Bambu, Orca, Prusa…) o un STL por color. Sin AMS: imprime la placa en su color y
+  pon un cambio de filamento a la altura que te indica para el relieve. El expositor sirve para
+  cualquier QR: la carta («NUESTRA CARTA»), el WiFi («WIFI GRATIS»), el hotel o la recepción.
+
+![Expositor de mesa 3D](capturas/resenas-expositor.png)
+
+**Hotel / alojamiento.** La bienvenida de hoteles, hostales y pisos turísticos: WiFi, horarios de
+entrada, salida y desayuno, servicios y lo que hay cerca (se escriben como la carta: `Piscina |
+10:00 a 20:00`), normas de la casa y botones para llamar a recepción, WhatsApp y cómo llegar. Con
+**QR por habitación** la página dice «Estás en la habitación 12».
+
+**Oficina / recepción.** Para la entrada de oficinas, clínicas o coworkings: cómo llegar, horario,
+contactos por departamento (`Soporte | 910 000 001 | soporte@empresa.es`, se pueden pulsar) y WiFi
+de invitados. La visita escribe su nombre, su empresa y a quién viene a ver, y **avisa a recepción**
+por WhatsApp o email con el mensaje ya escrito.
+
+**Tienda / producto.** Para la etiqueta o el escaparate: foto, precio y oferta (el precio viejo
+sale tachado), descripción, características (`Material | Piel`), botón **Comprar** a tu web y
+**Preguntar por WhatsApp** con el nombre del producto ya escrito.
+
+**Evento con programa.** Bodas, conciertos, ferias o fiestas: cartel, fecha con **cuenta atrás**,
+programa por horas (`19:30 | Concierto`), lugar con «Cómo llegar», entradas, precio y el botón
+**Añadir al calendario**, que abre el calendario del móvil con el evento ya puesto. (El tipo
+**Fecha al calendario** sigue existiendo para meter solo una cita en el calendario, sin página).
+
+**Inmobiliaria.** El QR del cartel de «Se vende» o «Se alquila»: foto, precio, m², habitaciones,
+baños, planta, características y referencia, con **Pedir visita** por WhatsApp (con la referencia
+ya escrita), llamar o email. Cuando se venda, ponlo en **Vendido / alquilado** y la ficha lo dice,
+sin quitar el cartel.
+
+> Como en la mascota, **pon tu dirección pública con https** en Ajustes antes de imprimir: los QR
+> llevan esa dirección y la vista previa de WhatsApp y Telegram enseña el nombre, el precio o la
+> fecha.
+
+## 9. Imprimir en 3D (STL y 3MF)
 
 ![Imprimir en 3D](capturas/3d.png)
 
@@ -160,7 +234,7 @@ Pulsa **Imprimir en 3D** (debajo del editor o en el menú de cada QR de la bibli
   **cambio de filamento**.
 - En 3D los módulos van cuadrados y sin logo, para que se lea siempre.
 
-## 9. Biblioteca
+## 10. Biblioteca
 
 ![Biblioteca](capturas/biblioteca.png)
 
@@ -170,7 +244,7 @@ Pulsa **Imprimir en 3D** (debajo del editor o en el menú de cada QR de la bibli
   estadísticas, copiar el enlace corto, pausar y eliminar.
 - Marca varios y descárgalos de golpe en un **ZIP**.
 
-## 10. Estadísticas
+## 11. Estadísticas
 
 ![Estadísticas de un QR](capturas/estadisticas-qr.png)
 
@@ -181,7 +255,7 @@ y navegadores, y las últimas lecturas. En **Estadísticas** tienes el resumen d
 
 Las lecturas **no guardan la IP**: solo un identificador anónimo que cambia cada día.
 
-## 11. Escanear un QR
+## 12. Escanear un QR
 
 ![Escáner](capturas/escanear.png)
 
@@ -190,7 +264,7 @@ Reconoce WiFi, contactos, eventos… y con **Recrear con mi diseño** lo vuelves
 estilo. Si entras por `http://` y el navegador no deja usar la cámara en directo, pulsa
 **O haz una foto**.
 
-## 12. Muchos QR de golpe (por lotes)
+## 13. Muchos QR de golpe (por lotes)
 
 ![Por lotes](capturas/lotes.png)
 
@@ -198,21 +272,26 @@ Pega una lista (una línea por QR, con `Nombre ; contenido`) o carga un **CSV**.
 con el mismo diseño y los descargas en un **ZIP** o los guardas en la biblioteca. Ideal para
 las mesas de un bar o las habitaciones de un hotel.
 
-## 13. Ajustes: dirección pública, tu marca y usuarios
+## 14. Ajustes: dirección pública, tu marca y usuarios
 
 ![Ajustes](capturas/ajustes.png)
 
 - **Apariencia**: claro, oscuro o como el sistema.
 - **Copia de seguridad**: exporta e importa todos tus QR, logos y plantillas.
-- **Tu cuenta**: cambiar la contraseña o salir.
+- **Tu cuenta**: tu **foto de perfil o el logo de tu marca** (sale arriba a la derecha y en
+  las páginas que compartes), cambiar la contraseña o salir.
 - Solo el administrador:
   - **Dirección pública**: la que llevan dentro los QR dinámicos (por ejemplo
-    `https://qr.midominio.com`).
+    `https://qr.midominio.com`). **Tiene que ser https con dominio** para que los QR abran
+    desde cualquier móvil, para que la ficha de mascota pueda mandar **la ubicación** y para
+    que al compartir en WhatsApp o Telegram salga **la imagen del QR**. Con `http://` o una
+    IP de casa (192.168…) solo funciona dentro de tu wifi, y QRPanel te lo avisa. Cómo
+    ponerla: con Pangolin, Nginx Proxy Manager o Cloudflare Tunnel (mira el README).
   - **Tu marca**: el nombre y el logo de tu negocio o tu familia, que se ven arriba, en la
     entrada y en las páginas compartidas.
   - **Usuarios**: aprobar, bloquear, hacer administrador o borrar cuentas.
 
-## 14. En el móvil y la app de Android
+## 15. En el móvil y la app de Android
 
 ![QRPanel en el móvil](capturas/movil.png)
 
@@ -228,7 +307,7 @@ QRPanel se adapta al móvil. Además:
 
 <img src="capturas/app-android.png" width="300" alt="Ajustes dentro de la app de Android">
 
-## 15. Versiones
+## 16. Versiones
 
 La web y la app llevan **cada una su número**, y se ven **abajo del todo de cada página**
 («Web 1.0.2 · App 1.0.0») y en tu menú de usuario. Así sabes de un vistazo qué tienes.
@@ -238,7 +317,7 @@ La web y la app llevan **cada una su número**, y se ven **abajo del todo de cad
   [`novedades.md`](../android/src/main/res/raw/novedades.md).
 - Se sube **siempre de poco en poco**, solo el último número: 1.0.0 → 1.0.1 → 1.0.2…
 
-## 16. Material gráfico (portadas, icono y avatar)
+## 17. Material gráfico (portadas, icono y avatar)
 
 Todo está en [`docs/promo/`](promo/), listo para GitHub y redes sociales:
 
@@ -250,10 +329,15 @@ Todo está en [`docs/promo/`](promo/), listo para GitHub y redes sociales:
 | [`qrpanel-historia-1080x1920.png`](promo/qrpanel-historia-1080x1920.png) | Historias y estados (Instagram, WhatsApp, TikTok) |
 | [`qrpanel-mascotas-1080x1080.png`](promo/qrpanel-mascotas-1080x1080.png) | Publicación del QR para mascotas |
 | [`qrpanel-3d-1080x1080.png`](promo/qrpanel-3d-1080x1080.png) | Publicación de la impresión en 3D |
-| [`qrpanel-avatar-500.png`](promo/qrpanel-avatar-500.png) | Foto de perfil (se ve bien recortada en círculo) |
+| [`qrpanel-negocios-1080x1080.png`](promo/qrpanel-negocios-1080x1080.png) | Publicación «Un QR para cada negocio» (carta, hotel, tienda, inmobiliaria) |
+| [`qrpanel-resenas-1080x1080.png`](promo/qrpanel-resenas-1080x1080.png) | Publicación de las reseñas y el expositor de mesa 3D |
+| [`qrpanel-avatar-oscuro-1000.png`](promo/qrpanel-avatar-oscuro-1000.png) | Avatar con el nombre «QRPanel», fondo oscuro (también en 500 px) |
+| [`qrpanel-avatar-claro-1000.png`](promo/qrpanel-avatar-claro-1000.png) | Avatar con el nombre «QRPanel», fondo claro (también en 500 px) |
+| [`qrpanel-avatar-500.png`](promo/qrpanel-avatar-500.png) | Solo el icono, para foto de perfil (se ve bien recortada en círculo) |
 | [`qrpanel-icono-1024.png`](promo/qrpanel-icono-1024.png) | Icono en grande, fondo transparente |
 
 | | | |
 |---|---|---|
 | ![Enlace](promo/qrpanel-enlace-1200x630.png) | ![Post](promo/qrpanel-post-1080x1080.png) | ![Historia](promo/qrpanel-historia-1080x1920.png) |
 | ![Mascotas](promo/qrpanel-mascotas-1080x1080.png) | ![3D](promo/qrpanel-3d-1080x1080.png) | ![Avatar](promo/qrpanel-avatar-500.png) |
+| ![Negocios](promo/qrpanel-negocios-1080x1080.png) | ![Reseñas](promo/qrpanel-resenas-1080x1080.png) | |

@@ -1,12 +1,17 @@
+import { LANG, setLang, t as tr } from "./i18n.js";
 import { render, shapeSample, svgToCanvas, readability, decodeCanvas, mergeDesign, DEFAULT_DESIGN, DOT_SHAPES, FRAME_SHAPES, BALL_SHAPES, FRAMES } from "./qr.js";
 import { TYPES, encode, missing, parse } from "./content.js";
 import { detect, LocalStore } from "./store.js";
 import { PRESETS, surprise } from "./presets.js";
+import { ANIMALS, animalLogo, animalFor, roundPhoto } from "./animals.js";
+import { drawPoster, HEADINGS, SIZES } from "./poster.js";
 import { makeZip } from "./zip.js";
-import { makePdf } from "./pdf.js";
+import { makePdf, makePdfPages } from "./pdf.js";
 import { build as build3d, toSTL, to3MF, toSTLParts, DEFAULT_3D } from "./model3d.js";
 import { viewer } from "./viewer3d.js";
-import { icon, quickLogo, $, $$, esc, debounce, h, toast, dialog, confirmDlg, promptDlg, menu, confetti, fmtDate, ago, fmtN, download, slug, readImage, fileToCanvas, APP, appVersion, shareFile, shareText, canShareText } from "./ui.js";
+import { drawFace, buildStand, DEFAULT_STAND, PALETTE } from "./stand3d.js";
+import { cropDlg, icon, quickLogo, $, $$, esc, debounce, h, toast, dialog, confirmDlg, promptDlg, menu, confetti, fmtDate, ago, fmtN, download, slug, readImage, fileToCanvas, APP, appVersion, shareFile, shareText, canShareText } from "./ui.js";
+if (LANG === "en") DEFAULT_DESIGN.frame.text = "SCAN ME";
 
 const S = { store: LocalStore, info: null, me: null, qrs: [], logos: [], templates: [], loaded: false };
 const app = $("#app");
@@ -51,6 +56,9 @@ function applyBrand() {
   if (fav && S.brand?.logo) fav.href = S.brand.logo;
 }
 
+/** Selector de idioma: los nombres no se traducen para que cada uno encuentre el suyo. */
+const langSeg = (id) => `<div class="seg lang-seg" id="${id}" data-noi18n>${[["es", "Español"], ["en", "English"]].map(([k, n]) => `<button type="button" data-l="${k}" class="${LANG === k ? "on" : ""}">${n}</button>`).join("")}</div>`;
+
 function showAuth() {
   const first = S.info && !S.info.has_users;
   app.innerHTML = `<div class="auth"><canvas id="bgfx"></canvas>
@@ -62,7 +70,9 @@ function showAuth() {
       <div class="auth-msg" id="a-msg"></div>
       <button class="btn primary" id="a-go">${first ? "Crear y entrar" : "Entrar"}</button>
       ${S.info?.allow_register && !first ? `<button type="button" class="btn ghost" id="a-sw">¿No tienes cuenta? Regístrate</button>` : ""}
+      ${langSeg("a-lang")}
     </form></div>`;
+  $("#a-lang").addEventListener("click", (e) => { const b = e.target.closest("[data-l]"); if (b && b.dataset.l !== LANG) setLang(b.dataset.l); });
   bgFx($("#bgfx"));
   let reg = first;
   $("#a-sw")?.addEventListener("click", () => {
@@ -125,7 +135,7 @@ function shell() {
     <div class="top-right">
       ${S.store.mode === "local" ? `<span class="local-pill" title="Los QR se guardan solo en este navegador">Modo local</span>` : ""}
       <button class="btn ghost icon" id="theme" aria-label="Cambiar tema">${icon(document.documentElement.dataset.theme === "dark" ? "sun" : "moon")}</button>
-      ${S.store.mode === "server" ? `<button class="avatar" id="me" title="${esc(S.me.username)}">${esc(initial)}</button>` : ""}
+      ${S.store.mode === "server" ? `<button class="avatar" id="me" title="${esc(S.me.username)}">${avatarInner(S.me.username, S.me.avatar)}</button>` : ""}
     </div>
   </header>
   <main id="view"></main>
@@ -159,6 +169,36 @@ function route() {
   ({ crear: viewCreate, editar: viewCreate, biblioteca: viewLibrary, escanear: viewScan, lotes: viewBatch, estadisticas: viewStats, ajustes: viewSettings }[r] || viewCreate)(v, arg);
 }
 addEventListener("hashchange", route);
+
+// --- foto de perfil / logo del usuario ----------------------------------------------
+const avatarInner = (name, src) => src ? `<img src="${esc(src)}" alt="">` : esc(String(name || "?")[0].toUpperCase());
+/** Prepara la imagen de perfil: 256 px. Una foto se recorta en cuadrado; un logo alargado
+ *  se encaja entero sobre blanco para que no se corte. */
+async function avatarFrom(file) {
+  const src = await fileToCanvas(file, 1024);
+  const cv = document.createElement("canvas"); cv.width = cv.height = 256;
+  const g = cv.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, 256, 256);
+  const r = src.width / src.height;
+  if (r > 1.3 || r < 0.77) { const k = Math.min(220 / src.width, 220 / src.height); g.drawImage(src, (256 - src.width * k) / 2, (256 - src.height * k) / 2, src.width * k, src.height * k); }
+  else { const m = Math.min(src.width, src.height); g.drawImage(src, (src.width - m) / 2, (src.height - m) / 2, m, m, 0, 0, 256, 256); }
+  return cv.toDataURL("image/jpeg", 0.88);
+}
+
+// --- aviso de https ---------------------------------------------------------------
+const isLocal = (u) => /\/\/(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.|[^/]*\.local\b)/i.test(u);
+/** Aviso cuando la dirección pública no es https o solo vale en casa: sin https no funcionan
+ *  la ubicación de la ficha de mascota ni la imagen del QR al compartir en WhatsApp/Telegram. */
+function httpsNote(base, pet = false) {
+  const local = isLocal(base), http = !/^https:\/\//i.test(base);
+  if (!local && !http) return "";
+  const why = local
+    ? "Esa dirección solo funciona dentro de tu red de casa: fuera de ella el QR no abrirá."
+    : "Esa dirección no es <b>https</b>.";
+  const lose = pet
+    ? "Sin una dirección <b>https</b> con dominio, quien encuentre a tu mascota <b>no podrá mandarte su ubicación</b> (el móvil no la da en páginas http) y el enlace no saldrá con imagen en WhatsApp."
+    : "Sin una dirección <b>https</b> con dominio, al compartir el enlace en WhatsApp o Telegram <b>no saldrá la imagen</b> del QR.";
+  return `<div class="https-note">${icon("alert", "sm")}<div>${why} ${lose} Ponla en <a href="#/ajustes">Ajustes → Dirección pública</a> (por ejemplo <code>https://qr.tudominio.com</code>, con Pangolin, Nginx Proxy Manager o Cloudflare Tunnel) <b>antes de imprimir</b>.</div></div>`;
+}
 
 // --- utilidades de QR -------------------------------------------------------------
 function logoSrc(design) {
@@ -243,7 +283,7 @@ function viewCreate(v, arg) {
       `)}
       ${step(2, "style", "Estilo rápido", true, `
         <div class="row between"><span class="label">Plantillas</span>
-          <div class="row"><button class="btn sm dice" id="dice">${icon("dice", "sm")}Sorpréndeme</button><button class="btn sm" id="savetpl">${icon("save", "sm")}Guardar la mía</button></div></div>
+          <div class="row"><button class="btn sm hidden" id="petplate">${icon("paw", "sm")}Placa de mascota</button><button class="btn sm dice" id="dice">${icon("dice", "sm")}Sorpréndeme</button><button class="btn sm" id="savetpl">${icon("save", "sm")}Guardar la mía</button></div></div>
         <div class="tpls" id="tpls"></div>
       `)}
       ${step(3, "dots", "Módulos y ojos", false, `
@@ -265,6 +305,10 @@ function viewCreate(v, arg) {
         <div class="drop" id="drop" tabindex="0"><div class="thumb" id="lthumb">${icon("image", "lg")}</div>
           <div><b>Sube tu logo</b><div class="small muted">Arrastra una imagen, pégala (Ctrl+V) o pulsa aquí. PNG, JPG, WebP o SVG.</div></div>
           <input type="file" id="lfile" accept="image/*" hidden></div>
+        <div class="pet-tip hidden" id="pet-tip">${icon("paw", "sm")}<span>Pon a tu mascota en el centro de la placa: un animal, su huella o <b>su propia foto</b>.</span></div>
+        <div class="row between"><span class="label">Animales</span><label class="switch sm"><input type="checkbox" id="anim-col"><i></i><span class="small">Con el color del QR</span></label></div>
+        <div class="logos" id="animals"></div>
+        <button class="btn sm hidden" id="petphoto" style="align-self:flex-start"></button>
         <span class="label">Iconos rápidos</span><div class="logos" id="quick"></div>
         <div id="mylogos-w"><span class="label">Mis logos</span><div class="logos" id="mylogos"></div></div>
         <div id="logo-opts" class="steps" style="gap:10px">
@@ -278,6 +322,7 @@ function viewCreate(v, arg) {
       `)}
       ${step(6, "frame", "Marco y texto", false, `
         <div class="opts" id="o-fstyle"></div>
+        <div class="row hidden" id="pet-frame" style="flex-wrap:wrap"><span class="small muted">Para la placa:</span>${["SI ME PIERDO, ESCANÉAME", "ESCANÉAME, ESTOY PERDIDO", "LLAMA A MI FAMILIA"].map((t) => `<button class="btn sm ghost" data-pt="${esc(tr(t))}">${esc(tr(t))}</button>`).join("")}</div>
         <div class="form" id="fopts">
           <label class="field"><span>Texto</span><input id="ftext" maxlength="40" placeholder="ESCANÉAME"></label>
           <label class="field half"><span>Letra</span><select id="ffont"><option value="sans">Moderna</option><option value="rounded">Redondeada</option><option value="serif">Clásica</option><option value="mono">Máquina</option></select></label>
@@ -311,6 +356,9 @@ function viewCreate(v, arg) {
           <button class="btn sm ghost" id="copytxt">${icon("text", "sm")}Copiar texto</button>
           ${E.id && S.store.mode === "server" ? `<button class="btn sm ghost" id="shlink">${icon("link", "sm")}Enlace</button>` : ""}
         </div>
+        <button class="btn full poster-btn" id="stand">${icon("star")}Expositor de mesa 3D <span class="small muted">placa con pie · 3MF</span></button>
+        <button class="btn full poster-btn hidden" id="tables">${icon("food")}QR por mesa <span class="small muted">tarjetas para imprimir</span></button>
+        <button class="btn full poster-btn hidden" id="poster">${icon("paw")}Cartel «Se busca» <span class="small muted">A4 · redes</span></button>
         <button class="btn full p3d-btn" id="p3d">${icon("cube")}Imprimir en 3D <span class="small muted">STL · 3MF</span></button>
       </div>
     </aside>
@@ -327,35 +375,43 @@ function viewCreate(v, arg) {
     formEl.innerHTML = t.fields.map((fd) => {
       const val = esc(f[fd.k] ?? "");
       const cls = `field ${fd.half ? "half" : ""}`;
-      if (fd.type === "textarea") return `<label class="${cls}"><span>${fd.label}</span><textarea data-f="${fd.k}" placeholder="${esc(fd.ph || "")}" maxlength="2000">${val}</textarea></label>`;
+      if (fd.type === "textarea") return `<label class="${cls}"><span>${fd.label}</span><textarea data-f="${fd.k}" placeholder="${esc(fd.ph || "")}" maxlength="${fd.max || 2000}" ${fd.rows ? `rows="${fd.rows}"` : ""}>${val}</textarea></label>`;
       if (fd.type === "select") return `<label class="${cls}"><span>${fd.label}</span><select data-f="${fd.k}">${fd.options.map(([k, l]) => `<option value="${k}" ${f[fd.k] === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>`;
-      if (fd.type === "image") return `<div class="field photo-field"><span>${fd.label} <span class="faint">(opcional)</span></span><div class="row"><div class="photo-thumb">${f[fd.k] ? `<img src="${esc(f[fd.k])}" alt="">` : icon("paw", "lg")}</div>
-        <div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm" data-act="photo">${icon("image", "sm")}${f[fd.k] ? "Cambiar foto" : "Poner foto"}</button>${f[fd.k] ? `<button type="button" class="btn sm ghost" data-act="nophoto">Quitar</button>` : ""}<input type="file" accept="image/*" data-photo="${fd.k}" hidden></div></div></div>`;
+      if (fd.type === "image") return `<div class="field photo-field"><span>${fd.label} <span class="faint">(opcional)</span></span><div class="row"><div class="photo-thumb">${f[fd.k] ? `<img src="${esc(f[fd.k])}" alt="">` : icon(fd.icon || "paw", "lg")}</div>
+        <div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm" data-act="photo" data-k="${fd.k}">${icon("image", "sm")}${f[fd.k] ? "Cambiar foto" : "Poner foto"}</button>${f[fd.k] ? `<button type="button" class="btn sm ghost" data-act="nophoto" data-k="${fd.k}">Quitar</button>` : ""}<input type="file" accept="image/*" data-photo="${fd.k}" hidden></div></div></div>`;
+      if (fd.type === "note") return `<div class="field small muted type-note">${icon("info", "sm")} ${fd.text}</div>`;
       if (fd.type === "check") return `<label class="${cls} switch"><input type="checkbox" data-f="${fd.k}" ${f[fd.k] ? "checked" : ""}><i></i><span>${fd.label}</span></label>`;
       if (fd.type === "button") return `<div class="${cls}"><button class="btn sm" data-act="${fd.action}" style="align-self:flex-start">${icon("pin", "sm")}${fd.label}</button></div>`;
       if (fd.type === "password") return `<label class="${cls}"><span>${fd.label}</span><div class="pw"><input type="password" data-f="${fd.k}" value="${val}" placeholder="${esc(fd.ph || "")}" maxlength="200"><button type="button" data-eye>${icon("eye", "sm")}</button></div></label>`;
       return `<label class="${cls}"><span>${fd.label}${fd.req ? "" : ' <span class="faint">(opcional)</span>'}</span><input data-f="${fd.k}" type="${fd.type || "text"}" value="${val}" placeholder="${esc(fd.ph || "")}" maxlength="1000"></label>`;
     }).join("");
-    updDyn();
+    updDyn(); petUI();
   }
   formEl.addEventListener("input", (e) => {
     const k = e.target.dataset.f; if (!k) return;
     E.fields[E.kind][k] = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    if (E.kind === "pet") petUI();
     refresh();
   });
   formEl.addEventListener("change", async (e) => {
     const k = e.target.dataset.photo; if (!k || !e.target.files[0]) return;
     try {
-      const cv = await fileToCanvas(e.target.files[0], 640);
-      E.fields[E.kind][k] = cv.toDataURL("image/jpeg", 0.82); drawForm(); refresh();
+      const file = e.target.files[0]; e.target.value = "";
+      // la foto se encuadra al subirla: la mascota y los logos en cuadrado; producto, piso o cartel en 4:3
+      const square = E.kind === "pet" || k === "logo";
+      const cv = await cropDlg(file, { aspect: square ? 1 : 4 / 3, out: square ? 640 : 800, round: E.kind === "pet", title: E.kind === "pet" ? "Encuadra a tu mascota" : "Encuadra la foto" });
+      if (!cv) return;
+      E.fields[E.kind][k] = cv.toDataURL("image/jpeg", 0.85); drawForm(); refresh();
     } catch { toast("No he podido leer esa imagen", "bad"); }
   });
-  formEl.addEventListener("change", (e) => { if (e.target.dataset.f && e.target.tagName === "SELECT") { E.fields[E.kind][e.target.dataset.f] = e.target.value; refresh(); } });
+  formEl.addEventListener("change", (e) => { if (e.target.dataset.f && e.target.tagName === "SELECT") { E.fields[E.kind][e.target.dataset.f] = e.target.value; petUI(); refresh(); } });
   formEl.addEventListener("click", (e) => {
     const eye = e.target.closest("[data-eye]");
     if (eye) { const i = eye.previousElementSibling; i.type = i.type === "password" ? "text" : "password"; eye.innerHTML = icon(i.type === "password" ? "eye" : "eyeoff", "sm"); }
-    if (e.target.closest('[data-act="photo"]')) formEl.querySelector("[data-photo]").click();
-    if (e.target.closest('[data-act="nophoto"]')) { E.fields[E.kind].photo = ""; drawForm(); refresh(); }
+    const ph = e.target.closest('[data-act="photo"]');
+    if (ph) formEl.querySelector(`[data-photo="${ph.dataset.k}"]`).click();
+    const nph = e.target.closest('[data-act="nophoto"]');
+    if (nph) { E.fields[E.kind][nph.dataset.k] = ""; drawForm(); refresh(); }
     if (e.target.closest('[data-act="geo"]')) {
       if (!navigator.geolocation) return toast("Este navegador no da la ubicación", "bad");
       navigator.geolocation.getCurrentPosition((p) => {
@@ -364,7 +420,14 @@ function viewCreate(v, arg) {
       }, () => toast("No he podido saber dónde estás (permiso denegado o sin GPS)", "bad"));
     }
   });
-  $$(".type", v).forEach((b) => b.addEventListener("click", () => { E.kind = b.dataset.kind; drawForm(); refresh(); }));
+  $$(".type", v).forEach((b) => b.addEventListener("click", () => {
+    E.kind = b.dataset.kind;
+    // una reseña nueva sale dinámica: QR más corto (mejor para imprimir) y cuentas los escaneos
+    if (E.kind === "review" && !E.id && !E.dynamic) { E.dynamic = true; if (!E.code) E.code = randCode(); }
+    // una placa de mascota sale con un animal en el centro si aún no tiene logo
+    if (E.kind === "pet" && !logoSrc(E.design)) { setAnimal(animalFor(E.fields.pet?.species)); drawForm(); commit(); return; }
+    drawForm(); refresh();
+  }));
 
   // --- dinamico
   const until = (ts) => { const m = Math.round((ts * 1000 - Date.now()) / 60000); return m < 60 ? `dentro de ${Math.max(1, m)} min` : m < 1440 * 2 ? `dentro de ${Math.round(m / 60)} h` : `dentro de ${Math.round(m / 1440)} días`; };
@@ -375,7 +438,7 @@ function viewCreate(v, arg) {
     if (!ok && E.dynamic) E.dynamic = false;
     if (page && !E.dynamic) { E.dynamic = true; if (!E.code) E.code = randCode(); setTimeout(refresh); }
     $("#dyn", v).disabled = page;
-    $("#dyn-help", v).innerHTML = page ? `${icon("paw", "sm")} Quien escanee la placa verá la <b>ficha de tu mascota</b> con tu teléfono, botones para llamarte o mandarte un WhatsApp y su ubicación. Puedes cambiar los datos cuando quieras sin reimprimir la placa, y marcarla como perdida.` : "Podrás cambiar el destino cuando quieras sin reimprimir el QR, y verás cuántas veces lo escanean.";
+    $("#dyn-help", v).innerHTML = TYPES[E.kind].help ? `${icon(TYPES[E.kind].icon, "sm")} ${TYPES[E.kind].help}` : page ? `${icon("paw", "sm")} Quien escanee la placa verá la <b>ficha de tu mascota</b> con tu teléfono, botones para llamarte o mandarte un WhatsApp y su ubicación. Puedes cambiar los datos cuando quieras sin reimprimir la placa, y marcarla como perdida.` : "Podrás cambiar el destino cuando quieras sin reimprimir el QR, y verás cuántas veces lo escanean.";
     $("#dyn", v).checked = E.dynamic;
     $("#dyn-opts", v).classList.toggle("hidden", !E.dynamic);
     if (E.dynamic && !E.code) E.code = randCode();
@@ -398,7 +461,7 @@ function viewCreate(v, arg) {
     $("#pinbox", v).classList.toggle("hidden", !pinOn); $("#pin-info", v).classList.toggle("hidden", !pinOn);
     $("#pin", v).placeholder = E.has_pin ? "Déjalo vacío para mantener el PIN actual" : "1234";
     const base = S.me.public_url || location.origin;
-    $("#dyn-url", v).innerHTML = E.dynamic ? `El QR llevará <b>${esc(base)}/r/${esc(E.code)}</b> ${TYPES[E.kind].page ? "y abrirá la ficha." : "y te redirigirá a tu destino."}${/\/\/(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base) ? `<br><span style="color:var(--warn)">${icon("alert", "sm")} Esa dirección solo funciona en tu red de casa. Pon tu dirección pública en Ajustes para que funcione desde cualquier móvil.</span>` : ""}` : "";
+    $("#dyn-url", v).innerHTML = E.dynamic ? `El QR llevará <b>${esc(base)}/r/${esc(E.code)}</b> ${E.kind === "menu" ? "y abrirá la carta." : E.kind === "hotel" ? "y abrirá la bienvenida del alojamiento." : E.kind === "office" ? "y abrirá la página de recepción." : E.kind === "shop" ? "y abrirá la ficha del producto." : E.kind === "eventpage" ? "y abrirá la página del evento." : E.kind === "home" ? "y abrirá la ficha del inmueble." : TYPES[E.kind].page ? "y abrirá la ficha." : "y te redirigirá a tu destino."}${httpsNote(base, E.kind === "pet")}` : "";
   }
   if (canDyn) {
     $("#dyn", v).addEventListener("change", (e) => { E.dynamic = e.target.checked; updDyn(); refresh(); if (E.dynamic) $("#stage").animate([{ transform: "scale(1)" }, { transform: "scale(1.03)" }, { transform: "scale(1)" }], { duration: 400 }); });
@@ -531,6 +594,64 @@ function viewCreate(v, arg) {
     if (E.design.ecc === "L" || E.design.ecc === "M") E.design.ecc = "Q";
     commit();
   });
+  // animales (sobre todo para la placa de mascota)
+  const animalColor = () => ($("#anim-col", v).checked && E.design.fg.c1 && E.design.fg.c1.toLowerCase() !== "#ffffff" ? E.design.fg.c1 : null);
+  function drawAnimals() {
+    $("#animals", v).innerHTML = ANIMALS.map(([k, n]) => `<button class="logo-it" data-a="${k}" title="${n}"><img src="${animalLogo(k, animalColor())}" alt="${n}"></button>`).join("");
+  }
+  function setAnimal(k) {
+    E.design.logo = { ...E.design.logo, src: animalLogo(k, animalColor()), id: null, plate: true, plateColor: "#ffffff", round: 1 };
+    if (E.design.ecc === "L" || E.design.ecc === "M") E.design.ecc = "Q";
+  }
+  $("#animals", v).addEventListener("click", (e) => {
+    const b = e.target.closest("[data-a]"); if (!b) return;
+    e.stopPropagation(); setAnimal(b.dataset.a); commit();
+  });
+  $("#anim-col", v).addEventListener("change", drawAnimals);
+  drawAnimals();
+  $("#petphoto", v).addEventListener("click", async () => {
+    const f = E.fields.pet || {};
+    if (!f.photo) return;
+    try {
+      const data = await roundPhoto(f.photo, 256);
+      const name = ("Foto de " + (f.name || "mi mascota")).slice(0, 60);
+      let l = S.logos.find((x) => x.data === data);
+      if (!l) { l = await S.store.addLogo(name, data); S.logos.unshift(l); }
+      E.design.logo = { ...E.design.logo, id: l.id, src: null, plate: false, round: 1, excavate: true, size: Math.max(E.design.logo.size || 0, 0.26) };
+      E.design.ecc = "H";
+      commit(); toast("Foto puesta en el centro del QR");
+    } catch (err) { toast(err.message, "bad"); }
+  });
+  $("#pet-frame", v).addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pt]"); if (!b) return;
+    if (E.design.frame.style === "none") E.design.frame.style = "bubble";
+    E.design.frame.text = b.dataset.pt; $("#ftext", v).value = b.dataset.pt;
+    commit();
+  });
+  $("#petplate", v).addEventListener("click", () => {
+    const f = E.fields.pet || {};
+    const c = ANIMALS.find((a) => a[0] === animalFor(f.species))?.[2] || "#b45309";
+    E.design = mergeDesign({ ...E.design,
+      dots: { shape: "rounded", scale: 1 }, eyes: { frame: "rounded", ball: "paw", custom: false },
+      fg: { type: "solid", c1: c }, bg: { type: "solid", c1: "#ffffff", radius: 0.08 },
+      frame: { ...E.design.frame, style: E.design.frame.style === "none" ? "bubble" : E.design.frame.style, text: ["", "ESCANÉAME", "SCAN ME"].includes((E.design.frame.text || "").trim()) ? tr("SI ME PIERDO, ESCANÉAME") : E.design.frame.text, color: c, textColor: "#ffffff", font: "rounded" } });
+    setAnimal(animalFor(f.species));
+    $("#ftext", v).value = E.design.frame.text; $("#ffont", v).value = "rounded";
+    $("#s-logo", v)?.classList.add("open");
+    commit(); toast("Diseño de placa aplicado: cámbialo a tu gusto");
+  });
+  function petUI() {
+    const pet = E.kind === "pet", f = E.fields.pet || {};
+    $("#pet-tip", v).classList.toggle("hidden", !pet);
+    $("#petplate", v).classList.toggle("hidden", !pet);
+    $("#poster", v)?.classList.toggle("hidden", !pet);
+    $("#tables", v)?.classList.toggle("hidden", !SPOTS[E.kind]);
+    if (SPOTS[E.kind]) $("#tables", v).innerHTML = `${icon(SPOTS[E.kind].icon)}${SPOTS[E.kind].btn} <span class="small muted">tarjetas para imprimir</span>`;
+    $("#pet-frame", v).classList.toggle("hidden", !pet);
+    const ph = $("#petphoto", v);
+    ph.classList.toggle("hidden", !(pet && f.photo));
+    ph.innerHTML = `${icon("image", "sm")}Usar la foto de ${esc(f.name || "tu mascota")}`;
+  }
   function drawLogos() {
     $("#mylogos-w", v).classList.toggle("hidden", !S.logos.length);
     $("#mylogos", v).innerHTML = S.logos.map((l) => `<button class="logo-it ${E.design.logo.id === l.id ? "on" : ""}" data-l="${l.id}" title="${esc(l.name)}"><img src="${esc(l.data)}" alt=""><span class="x" data-dl="${l.id}">${icon("x", "sm")}</span></button>`).join("");
@@ -700,7 +821,7 @@ function viewCreate(v, arg) {
       const i = S.qrs.findIndex((x) => x.id === saved.id);
       if (i >= 0) S.qrs[i] = saved; else S.qrs.unshift(saved);
       const wasNew = !E.id;
-      if (saved.share_url) uploadShareImage(saved);
+      if (S.store.mode === "server" && (saved.share_url || saved.dynamic)) uploadShareImage(saved);
       E.has_pin = !!saved.has_pin; E.pin = ""; E.pinOn = undefined; if ($("#pin", v)) $("#pin", v).value = "";
       E.id = saved.id; E.code = saved.code || E.code; E.short_url = saved.short_url; E.content = saved.content; E.name = saved.name;
       $("#name", v).value = E.name;
@@ -719,6 +840,20 @@ function viewCreate(v, arg) {
     const blob = await exportQR({ content: content(), design: E.design }, fmt, size);
     download(blob, `${slug(E.name || autoName())}.${EXT[fmt]}`);
     confetti(r.left + r.width / 2, r.top, 40);
+  };
+  $("#stand", v).onclick = () => {
+    if (missing(E.kind, E.fields[E.kind]).length) return toast("Escribe primero el contenido del QR", "bad");
+    if (E.dynamic && !E.id) return toast("Guarda primero el QR: el expositor lleva tu enlace corto y tiene que existir", "bad");
+    standDlg({ name: E.name || autoName(), kind: E.kind, content: content(), design: E.design });
+  };
+  $("#tables", v).onclick = () => {
+    if (!E.id || !E.short_url) return toast("Guarda primero el QR: las tarjetas abren la página guardada", "bad");
+    tablesDlg({ id: E.id, name: E.name || autoName(), kind: E.kind, fields: E.fields[E.kind], design: E.design, short_url: E.short_url });
+  };
+  $("#poster", v).onclick = () => {
+    if (missing(E.kind, E.fields[E.kind]).length) return toast("Rellena primero la ficha (nombre, dueño y teléfono)", "bad");
+    if (!E.id) return toast("Guarda primero la placa: el cartel lleva su QR y tiene que funcionar", "bad");
+    posterDlg({ name: E.name || autoName(), kind: E.kind, fields: E.fields[E.kind], content: content(), design: E.design, short_url: E.short_url });
   };
   $("#p3d", v).onclick = () => {
     if (missing(E.kind, E.fields[E.kind]).length) return toast("Escribe primero el contenido del QR", "bad");
@@ -869,7 +1004,10 @@ function qrMenu(anchor, q, redraw) {
     { icon: "download", label: "Descargar SVG", run: async () => download(await exportQR(q, "svg"), `${slug(q.name)}.svg`) },
     { icon: "download", label: "Descargar JPG", run: async () => download(await exportQR(q, "jpg", 1024), `${slug(q.name)}.jpg`) },
     { icon: "download", label: "Descargar PDF", run: async () => download(await exportQR(q, "pdf", 2048), `${slug(q.name)}.pdf`) },
+    ...(q.kind === "pet" ? [{ icon: "paw", label: "Cartel «Se busca» (A4 y redes)", run: () => posterDlg(q) }] : []),
+    ...(SPOTS[q.kind] && q.short_url ? [{ icon: SPOTS[q.kind].icon, label: SPOTS[q.kind].btn + " (tarjetas)", run: () => tablesDlg(q) }] : []),
     { icon: "cube", label: "Imprimir en 3D (STL / 3MF)", run: () => print3dDlg(q) },
+    { icon: "star", label: "Expositor de mesa 3D", run: () => standDlg(q) },
     { icon: "share", label: "Compartir imagen (WhatsApp, Telegram…)", run: async () => {
       const blob = await exportQR(q, "png", 1024), name = `${slug(q.name)}.png`;
       try { if (!(await shareFile(blob, name, q.name))) { download(blob, name); toast("Este navegador no comparte archivos: lo he descargado"); } } catch { toast("No se pudo compartir", "bad"); }
@@ -900,6 +1038,257 @@ function qrMenu(anchor, q, redraw) {
 }
 
 // --- imprimir en 3D ------------------------------------------------------------------
+/** Expositor de mesa 3D: placa con el QR, texto, estrellas e icono en colores, y base con ranura. */
+async function standDlg(q) {
+  const kd = { review: { msg: tr("¡Gracias por tu reseña!"), line1: tr("DEJA TU"), line2: tr("RESEÑA"), stars: 5, icon: "bubble", bottom: tr("Escanea el QR") },
+    menu: { line1: tr("NUESTRA"), line2: tr("CARTA"), stars: 0, icon: "none", bottom: tr("Escanea el QR") },
+    wifi: { line1: tr("WIFI"), line2: tr("GRATIS"), stars: 0, icon: "none", bottom: tr("Escanea para conectarte") },
+    hotel: { line1: tr("BIENVENIDO"), line2: "", stars: 0, icon: "none", bottom: tr("WiFi, horarios y servicios") },
+    office: { line1: tr("RECEPCIÓN"), line2: "", stars: 0, icon: "none", bottom: tr("Escanea al llegar") },
+    shop: { line1: tr("MÁS"), line2: tr("INFO"), stars: 0, icon: "none", bottom: tr("Precio y detalles") },
+    eventpage: { line1: tr("PROGRAMA"), line2: "", stars: 0, icon: "none", bottom: tr("Horarios y ubicación") },
+    home: { line1: tr("SE VENDE"), line2: "", stars: 0, icon: "none", bottom: tr("Fotos, precio y visitas") } }[q.kind] || { line1: tr("ESCANÉAME"), line2: "", stars: 0, icon: "none", bottom: "" };
+  let o = { ...DEFAULT_STAND, ...kd };
+  try { const sv = JSON.parse(localStorage.getItem("qp-stand-" + q.kind) || "{}"); Object.assign(o, sv); } catch { /* nada */ }
+  let logo = null, model = null, view = null;
+  const sel = (k, opts) => `<select class="input" data-k="${k}">${opts.map(([v, l]) => `<option value="${v}" ${String(o[k]) === String(v) ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+  await dialog({
+    title: "Expositor de mesa 3D · " + q.name, wide: true,
+    body: `<div class="p3d stand">
+      <div class="p3d-view"><canvas id="c3d" aria-label="Vista previa 3D"></canvas>
+        <div class="p3d-tools"><button class="btn sm" data-v="spin">${icon("flip", "sm")}Girar</button><button class="btn sm" data-v="top">${icon("scan", "sm")}Desde arriba</button><button class="btn sm" data-v="reset">${icon("eye", "sm")}Centrar</button></div>
+        <div class="small faint p3d-hint">Dos piezas: la placa (se imprime tumbada, con los colores arriba) y la base con ranura donde se encaja. Todo con las aristas redondeadas.</div></div>
+      <div class="p3d-form">
+        <div class="row"><img id="face" alt="Cara de la placa" style="width:110px;border-radius:10px;box-shadow:0 6px 20px -8px rgba(0,0,0,.4)"><div class="grow steps" style="gap:8px">
+          <label class="field"><span>Mensaje arriba</span><input class="input" data-k="msg" maxlength="28" value="${esc(o.msg || "")}"></label>
+          <label class="field"><span>Texto (línea 1)</span><input class="input" data-k="line1" maxlength="16" value="${esc(o.line1)}"></label>
+          <label class="field"><span>Texto (línea 2)</span><input class="input" data-k="line2" maxlength="16" value="${esc(o.line2)}"></label></div></div>
+        <label class="field"><span>Debajo del QR</span><input class="input" data-k="bottom" maxlength="26" value="${esc(o.bottom)}"></label>
+        <div class="row"><label class="field half"><span>Icono</span>${sel("icon", [["bubble", "Bocadillo con corazón"], ["heart", "Corazón"], ["thumb", "Pulgar arriba"], ["none", "Ninguno"]])}</label>
+          <label class="field half"><span>Estrellas</span>${sel("stars", [[5, "5 estrellas"], [0, "Sin estrellas"]])}</label></div>
+        <div class="row"><button class="btn sm" id="slogo">${icon("image", "sm")}Poner mi logo</button><button class="btn sm ghost hidden" id="snologo">Quitar logo</button><input type="file" id="sfile" accept="image/*" hidden></div>
+        <div class="small faint">El logo se pasa a los colores de filamento (blanco, amarillo, rojo, azul y verde). Usa solo logos que tengas derecho a usar.</div>
+        <div class="row"><label class="field half"><span>Color de la placa</span>${sel("plateColor", [["#111111", "Negro"], ["#1e3a8a", "Azul marino"], ["#374151", "Gris oscuro"], ["#7c2d12", "Marrón"]])}</label>
+          <label class="field half"><span>Tamaño</span>${sel("width", [[70, "Pequeño · 70 × 110 mm"], [85, "Mediano · 85 × 135 mm"], [100, "Grande · 100 × 160 mm"]])}</label></div>
+        <label class="switch"><input type="checkbox" data-k="base" ${o.base ? "checked" : ""}><i></i><span>Base con ranura (para que se tenga de pie)</span></label>
+        <div class="p3d-info" id="i3d"></div>
+      </div></div>`,
+    buttons: [["Cerrar", null], ["2 STL por color (ZIP)", async () => {
+      download(await toSTLParts(model, slug(q.name) + "-expositor"), slug(q.name) + "-expositor-stl.zip"); return true;
+    }], ["Descargar 3MF a color", async () => {
+      download(await to3MF(model, q.name + " expositor"), slug(q.name) + "-expositor.3mf");
+      toast("Expositor descargado. Ábrelo en tu laminador (Bambu, Orca, Prusa…)"); return true;
+    }, "primary"]],
+    onOpen: (w) => {
+      const cv = w.querySelector("#c3d");
+      view = viewer(cv);
+      if (!view) cv.replaceWith(h(`<div class="empty small muted">Tu navegador no puede mostrar la vista 3D, pero el archivo se descarga igual.</div>`));
+      const redraw = async () => {
+        o.height = Math.round(o.width * 135 / 85);
+        localStorage.setItem("qp-stand-" + q.kind, JSON.stringify({ ...o }));
+        const face = await drawFace(q.content || " ", o, logo);
+        w.querySelector("#face").src = face.toDataURL();
+        model = buildStand(face, o);
+        view?.setModel(model);
+        const i = model.info, f = (v) => String(+(+v).toFixed(1)).replace(".", ",");
+        w.querySelector("#i3d").innerHTML = `<div><b>Placa ${f(o.width)} × ${f(o.height)} mm</b>, ${f(o.thick)} mm de grosor + ${f(o.relief)} mm de relieve · ${model.parts.length} piezas · ${fmtN(i.tris)} triángulos</div>
+          <div>Colores: ${model.parts.map((p) => `<span class="chip"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color};margin-right:4px;border:1px solid #0003"></i>${esc(p.name)}</span>`).join(" ")}</div>
+          <div class="faint">Con una sola boquilla y sin AMS: imprime la placa en su color y pon un <b>cambio de filamento a ${f(o.thick)} mm</b> para el relieve (saldrá de un color).</div>`;
+      };
+      let t = 0; const soon = () => { clearTimeout(t); t = setTimeout(redraw, 200); };
+      w.querySelector(".p3d-form").addEventListener("input", (e) => {
+        const k = e.target.dataset.k; if (!k) return;
+        o[k] = e.target.type === "checkbox" ? e.target.checked : ["stars", "width"].includes(k) ? +e.target.value : e.target.value;
+        soon();
+      });
+      w.querySelector(".p3d-tools").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-v]"); if (!b || !view) return;
+        if (b.dataset.v === "spin") view.spin(); else if (b.dataset.v === "top") view.top(); else view.reset();
+      });
+      w.querySelector("#slogo").onclick = () => w.querySelector("#sfile").click();
+      w.querySelector("#sfile").onchange = async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        try {
+          const c = await fileToCanvas(file, 600), im = new Image();
+          await new Promise((r) => { im.onload = r; im.src = c.toDataURL("image/png"); });
+          // el fondo blanco del logo no se imprime: se vuelve transparente
+          const g = c.getContext("2d"), d = g.getImageData(0, 0, c.width, c.height);
+          for (let i = 0; i < d.data.length; i += 4) if (d.data[i] > 235 && d.data[i + 1] > 235 && d.data[i + 2] > 235) d.data[i + 3] = 0;
+          g.putImageData(d, 0, 0); logo = new Image(); await new Promise((r) => { logo.onload = r; logo.src = c.toDataURL("image/png"); });
+          w.querySelector("#snologo").classList.remove("hidden"); redraw();
+        } catch { toast("No he podido leer esa imagen", "bad"); }
+      };
+      w.querySelector("#snologo").onclick = (e) => { logo = null; e.currentTarget.classList.add("hidden"); redraw(); };
+      redraw();
+    },
+  });
+  view?.destroy();
+}
+
+/** Cómo se llama cada sitio con su propio QR (?m=N) según el tipo. */
+const SPOTS = {
+  menu: { icon: "food", label: "Mesa", btn: "QR por mesa", text: "Escanea para ver la carta", stat: "Por mesa" },
+  hotel: { icon: "bed", label: "Habitación", btn: "QR por habitación", text: "WiFi, horarios y servicios", stat: "Por habitación" },
+  office: { icon: "building", label: "Planta", btn: "QR por zona o puerta", text: "Escanea al llegar", stat: "Por zona" },
+  shop: { icon: "cart", label: "Expositor", btn: "QR por expositor", text: "Escanea para ver la ficha", stat: "Por expositor" },
+};
+
+/** QR por mesa: el mismo QR de la carta con ?m=N, para saber desde qué mesa escanean. */
+async function tablesDlg(q) {
+  const f = (q.fields && typeof q.fields[q.kind] === "object" ? q.fields[q.kind] : q.fields) || {};
+  const sp = SPOTS[q.kind] || SPOTS.menu, lsk = q.kind === "menu" ? "qp-tables" : "qp-tables-" + q.kind;
+  let o = { from: 1, to: 12, label: tr(sp.label), text: tr(sp.text) };
+  try { Object.assign(o, JSON.parse(localStorage.getItem(lsk) || "{}")); } catch { /* nada */ }
+  const design = { ...mergeDesign(q.design), frame: { style: "none" } };
+  const url = (i) => `${q.short_url}?m=${encodeURIComponent(i)}`;
+  const list = () => { const a = []; for (let i = Math.max(1, +o.from || 1); i <= Math.min(+o.to || 1, (+o.from || 1) + 199); i++) a.push(i); return a; };
+  const logo = f.logo ? await new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = f.logo; }) : null;
+  async function card(i, W = 780, H = 1060) {
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const g = cv.getContext("2d"), font = "Inter, 'Segoe UI', Roboto, Arial, sans-serif";
+    g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+    g.strokeStyle = "#d6d3d1"; g.lineWidth = 3; g.setLineDash([14, 10]); g.strokeRect(2, 2, W - 4, H - 4); g.setLineDash([]);
+    let y = 70;
+    if (logo) { const s = 110; g.save(); g.beginPath(); g.roundRect((W - s) / 2, y - 20, s, s, 26); g.clip(); const m = Math.min(logo.naturalWidth, logo.naturalHeight); g.drawImage(logo, (logo.naturalWidth - m) / 2, (logo.naturalHeight - m) / 2, m, m, (W - s) / 2, y - 20, s, s); g.restore(); y += 130; }
+    g.fillStyle = "#1c1917"; g.textAlign = "center"; g.textBaseline = "middle";
+    let fs = 54; do { g.font = `800 ${fs}px ${font}`; fs -= 2; } while (g.measureText(f.name || q.name).width > W - 80 && fs > 24);
+    g.fillText(f.name || q.name, W / 2, y + 10); y += 60;
+    const qs = 520, qc = await svgToCanvas(render(url(i), design, { logoSrc: logoSrc(q.design) }).svg, qs, "#ffffff");
+    g.drawImage(qc, (W - qs) / 2, y, qs, qs); y += qs + 70;
+    g.fillStyle = "#b45309"; g.font = `900 92px ${font}`; g.fillText(`${o.label} ${i}`.trim(), W / 2, y); y += 80;
+    g.fillStyle = "#57534e"; g.font = `600 34px ${font}`; g.fillText(o.text || "", W / 2, y);
+    return cv;
+  }
+  const toJpg = (c, qlt = 0.92) => new Promise((r) => c.toBlob(r, "image/jpeg", qlt));
+  await dialog({
+    title: sp.btn + " · " + (f.name || q.name), wide: true,
+    body: `<div class="steps" style="gap:12px">
+      <div class="small muted">Cada mesa tiene su propio QR: todos abren la misma carta (la que cambias cuando quieras), pero la página dice «Estás en la mesa 5» y en <b>Estadísticas</b> ves cuántas veces se escanea cada mesa.</div>
+      <div class="row" style="flex-wrap:wrap;gap:10px">
+        <label class="field" style="width:110px"><span>Desde</span><input class="input" type="number" id="tfrom" min="1" max="999" value="${o.from}"></label>
+        <label class="field" style="width:110px"><span>Hasta</span><input class="input" type="number" id="tto" min="1" max="999" value="${o.to}"></label>
+        <label class="field" style="width:150px"><span>Se llama</span><input class="input" id="tlabel" maxlength="20" value="${esc(o.label)}"></label>
+        <label class="field grow"><span>Texto de la tarjeta</span><input class="input" id="ttext" maxlength="40" value="${esc(o.text)}"></label>
+      </div>
+      <div class="tables-grid" id="tgrid"></div>
+      <div class="row" style="flex-wrap:wrap"><button class="btn primary" id="tpdf">${icon("download", "sm")}PDF con tarjetas (6 por folio A4)</button><button class="btn" id="tzip">${icon("download", "sm")}ZIP con un PNG por mesa</button></div>
+      <div class="small faint" id="tinfo"></div></div>`,
+    buttons: [["Cerrar", null, "primary"]],
+    onOpen: (w) => {
+      const grid = w.querySelector("#tgrid"), info = w.querySelector("#tinfo");
+      const draw = () => {
+        localStorage.setItem(lsk, JSON.stringify(o));
+        const l = list();
+        grid.innerHTML = l.slice(0, 24).map((i) => `<div class="tq">${render(url(i), design, {}).svg}${esc(`${o.label} ${i}`)}</div>`).join("") + (l.length > 24 ? `<div class="tq" style="display:grid;place-items:center">+${l.length - 24} más</div>` : "");
+        info.textContent = `${l.length} mesas · cada QR lleva ${url(l[0] || 1)}`;
+      };
+      const upd = debounce(draw, 250);
+      w.querySelector("#tfrom").oninput = (e) => { o.from = Math.max(1, +e.target.value || 1); upd(); };
+      w.querySelector("#tto").oninput = (e) => { o.to = Math.max(1, +e.target.value || 1); upd(); };
+      w.querySelector("#tlabel").oninput = (e) => { o.label = e.target.value; upd(); };
+      w.querySelector("#ttext").oninput = (e) => { o.text = e.target.value; };
+      w.querySelector("#tpdf").onclick = async (e) => {
+        const b = e.currentTarget; b.disabled = true;
+        try {
+          const l = list(), pages = [];
+          for (let p = 0; p < l.length; p += 6) {
+            const pg = document.createElement("canvas"); pg.width = 1654; pg.height = 2339;
+            const g = pg.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, pg.width, pg.height);
+            const cw = 780, ch = 1060;
+            const chunk = l.slice(p, p + 6);
+            for (let j = 0; j < chunk.length; j++) {
+              // 2 columnas x 3 filas a tamaño reducido para que quepan 6
+              const sc = 0.68, gap = 40, top = (2339 - 3 * ch * sc - 2 * gap) / 2, left = (1654 - 2 * cw * sc - gap) / 2;
+              const cx = left + (j % 2) * (cw * sc + gap), cy = top + Math.floor(j / 2) * (ch * sc + gap);
+              g.drawImage(await card(chunk[j]), cx, cy, cw * sc, ch * sc);
+            }
+            info.textContent = `Preparando… ${Math.min(p + 6, l.length)} de ${l.length}`;
+            pages.push({ jpg: await toJpg(pg), w: pg.width, h: pg.height });
+          }
+          download(await makePdfPages(pages, `${f.name || q.name} mesas`), `${slug(f.name || q.name)}-mesas.pdf`);
+          toast(`PDF con ${l.length} tarjetas listo`); draw();
+        } finally { b.disabled = false; }
+      };
+      w.querySelector("#tzip").onclick = async (e) => {
+        const b = e.currentTarget; b.disabled = true;
+        try {
+          const files = [];
+          for (const i of list()) files.push({ name: `${slug(o.label || "mesa")}-${i}.png`, data: await new Promise(async (r) => (await card(i)).toBlob(r, "image/png")) });
+          download(await makeZip(files), `${slug(f.name || q.name)}-mesas.zip`); toast("ZIP listo");
+        } finally { b.disabled = false; }
+      };
+      draw();
+    },
+  });
+}
+
+/** Cartel de mascota perdida: A4 para imprimir y pegar, y post/historia para redes. */
+async function posterDlg(q) {
+  const f = (q.fields && typeof q.fields.pet === "object" ? q.fields.pet : q.fields) || {};
+  let o = { size: "a4", heading: "SE BUSCA", note: "", strips: true, showPhone: false };
+  try { Object.assign(o, JSON.parse(localStorage.getItem("qp-poster") || "{}"), { size: "a4" }); } catch { /* nada */ }
+  const svg = render(q.content || " ", { ...mergeDesign(q.design), frame: { style: "none" } }, { logoSrc: logoSrc(q.design) }).svg;
+  const qr = await svgToCanvas(svg, 900, "#ffffff");
+  let cv = null;
+  const fname = (ext, sz) => `${slug("se-busca-" + (f.name || q.name))}${sz === "a4" ? "" : "-" + sz}.${ext}`;
+  const make = async (size) => drawPoster(f, qr, { ...o, size });
+  const toJpg = (c) => new Promise((r) => c.toBlob(r, "image/jpeg", 0.9));
+  await dialog({
+    title: "Cartel «Se busca» · " + (f.name || q.name), wide: true,
+    body: `<div class="poster">
+      <div class="poster-view"><canvas id="pcv"></canvas></div>
+      <div class="poster-form">
+        <div class="seg" id="psize">${Object.entries(SIZES).map(([k, s]) => `<button data-v="${k}" class="${k === o.size ? "on" : ""}">${s.name}</button>`).join("")}</div>
+        <label class="field"><span>Título</span><select id="phead">${HEADINGS.map((h) => `<option ${h === o.heading ? "selected" : ""}>${h}</option>`).join("")}</select></label>
+        <label class="field"><span>Texto extra <span class="faint">(opcional)</span></span><input class="input" id="pnote" maxlength="90" value="${esc(o.note)}" placeholder="Perdido el 20 de noviembre en el parque del Oeste"></label>
+        <label class="switch" id="pstrips-w"><input type="checkbox" id="pstrips" ${o.strips ? "checked" : ""}><i></i><span>Tiras recortables</span></label>
+        <label class="switch"><input type="checkbox" id="pphone" ${o.showPhone ? "checked" : ""}><i></i><span>Mostrar mi teléfono en el cartel</span></label>
+        <div class="small muted" id="pphone-help"></div>
+        <div class="small muted">Sale con la foto y los datos de la ficha. Para cambiarlos, edita la placa y guárdala. El QR del cartel abre su ficha: si cambias algo, el cartel no hay que reimprimirlo.</div>
+        <div class="poster-acts">
+          <button class="btn primary" id="ppdf">${icon("download", "sm")}PDF A4 para imprimir</button>
+          <button class="btn" id="pjpg">${icon("download", "sm")}Descargar imagen</button>
+          <button class="btn" id="pshare">${icon("share", "sm")}Compartir (WhatsApp, Telegram, Instagram…)</button>
+        </div>
+        <div class="small faint">En el móvil, «Compartir» abre la lista de apps: WhatsApp, Telegram, Instagram, TikTok, Facebook… En el PC descarga la imagen para que la subas.</div>
+      </div></div>`,
+    buttons: [["Cerrar", null, "primary"]],
+    onOpen: (w) => {
+      const pcv = w.querySelector("#pcv");
+      const redraw = async () => {
+        localStorage.setItem("qp-poster", JSON.stringify(o));
+        w.querySelector("#pstrips-w").classList.toggle("hidden", o.size !== "a4");
+        cv = await make(o.size);
+        pcv.width = cv.width; pcv.height = cv.height; pcv.getContext("2d").drawImage(cv, 0, 0);
+        pcv.style.aspectRatio = `${cv.width} / ${cv.height}`;
+      };
+      w.querySelector("#psize").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-v]"); if (!b) return;
+        o.size = b.dataset.v; w.querySelectorAll("#psize button").forEach((x) => x.classList.toggle("on", x === b)); redraw();
+      });
+      w.querySelector("#phead").onchange = (e) => { o.heading = e.target.value; redraw(); };
+      w.querySelector("#pnote").oninput = debounce((e) => { o.note = e.target.value.trim(); redraw(); }, 250);
+      w.querySelector("#pstrips").onchange = (e) => { o.strips = e.target.checked; redraw(); };
+      const phHelp = () => { w.querySelector("#pphone-help").textContent = o.showPhone ? "Tu teléfono se verá impreso: cualquiera que pase podrá verlo y apuntarlo." : "Por privacidad tu teléfono no sale impreso: solo lo ve quien escanea el QR (en la ficha). Las tiras llevan un QR pequeño."; };
+      w.querySelector("#pphone").onchange = (e) => { o.showPhone = e.target.checked; phHelp(); redraw(); };
+      phHelp();
+      w.querySelector("#ppdf").onclick = async () => {
+        const a4 = await make("a4");
+        download(await makePdf(await toJpg(a4), a4.width, a4.height, "Se busca " + (f.name || ""), 14), fname("pdf", "a4"));
+        toast("Cartel en PDF listo para imprimir");
+      };
+      w.querySelector("#pjpg").onclick = async () => { download(await toJpg(cv), fname("jpg", o.size)); };
+      w.querySelector("#pshare").onclick = async () => {
+        const blob = await toJpg(cv), name = fname("jpg", o.size);
+        const text = `${o.heading} ${f.name || ""}${f.zone ? " · " + f.zone : ""}${o.showPhone && f.phone ? " · Llama al " + f.phone : " · Escanea el QR para avisar"}${q.short_url ? "\n" + q.short_url : ""}`;
+        try { if (!(await shareFile(blob, name, text))) { download(blob, name); toast("Este navegador no comparte archivos: lo he descargado para que lo subas"); } }
+        catch { toast("No se pudo compartir", "bad"); }
+      };
+      redraw();
+    },
+  });
+}
+
 async function print3dDlg(q) {
   let o = { ...DEFAULT_3D };
   try { Object.assign(o, JSON.parse(localStorage.getItem("qp-3d") || "{}")); } catch { /* sin preferencias */ }
@@ -987,7 +1376,64 @@ async function print3dDlg(q) {
 
 /** Sube la imagen del QR para que el enlace compartido salga con su foto en WhatsApp/Telegram. */
 async function uploadShareImage(q) {
-  try { const png = await exportQR(q, "png", 800); await S.store.shareImage?.(q.id, png); return png; } catch { return null; }
+  try {
+    const card = await previewCard(q);
+    if (card) await S.store.shareImage?.(q.id, card);
+  } catch { /* la vista previa no es imprescindible */ }
+  try { return await exportQR(q, "png", 800); } catch { return null; }
+}
+/** Tarjeta de 1200x630 (lo que WhatsApp/Telegram muestran en grande): el QR sobre fondo claro
+ *  y el nombre al lado. Siempre con fondo (un PNG transparente sale negro en WhatsApp) y ligera. */
+async function previewCard(q) {
+  const W = 1200, H = 630;
+  const svg = render(q.content || " ", q.design, { logoSrc: logoSrc(q.design) });
+  const qh = 520, qw = Math.round((qh * svg.w) / svg.h);
+  const qc = await svgToCanvas(svg.svg, qw, "#ffffff");
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const g = cv.getContext("2d");
+  const grd = g.createLinearGradient(0, 0, W, H); grd.addColorStop(0, "#eef2ff"); grd.addColorStop(1, "#f5f3ff");
+  g.fillStyle = grd; g.fillRect(0, 0, W, H);
+  const box = 570, bx = 50, by = (H - box) / 2;
+  g.fillStyle = "#ffffff"; g.shadowColor = "rgba(15,23,42,.12)"; g.shadowBlur = 30; g.shadowOffsetY = 8;
+  g.beginPath(); g.roundRect(bx, by, box, box, 36); g.fill(); g.shadowColor = "transparent";
+  const sc = Math.min(520 / qc.width, 520 / qc.height), dw = qc.width * sc, dh = qc.height * sc;
+  g.drawImage(qc, bx + (box - dw) / 2, by + (box - dh) / 2, dw, dh);
+  const tx = 680, maxw = W - tx - 50, font = "Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+  const pet = q.kind === "pet", f = (q.fields && typeof q.fields[q.kind] === "object" ? q.fields[q.kind] : q.fields) || {};
+  const title = pet ? (f.name ? "Hola, soy " + f.name : "Placa de mascota") : (q.name || "Código QR");
+  const sub = pet ? (f.lost ? "¡Me he perdido! Escanéame para avisar a mi familia" : "Si me encuentras, escanéame para avisar a mi familia") : "Escanéalo con el móvil o abre el enlace para descargarlo";
+  const wrap = (text, size, weight, maxLines) => {
+    g.font = `${weight} ${size}px ${font}`;
+    const words = String(text).split(/\s+/), lines = [];
+    let cur = "";
+    for (const w of words) { const t = cur ? cur + " " + w : w; if (g.measureText(t).width > maxw && cur) { lines.push(cur); cur = w; } else cur = t; }
+    if (cur) lines.push(cur);
+    if (lines.length > maxLines) { lines.length = maxLines; lines[maxLines - 1] = lines[maxLines - 1].replace(/.{0,2}$/, "…"); }
+    return lines;
+  };
+  let size = 60, tl = wrap(title, size, 800, 3);
+  while (tl.length > 2 && size > 40) { size -= 6; tl = wrap(title, size, 800, 3); }
+  const sl = wrap(sub, 30, 500, 3);
+  let ph = 0;
+  if (pet && f.photo) {
+    // la foto de la mascota, en redondo, encima del nombre
+    try {
+      const im = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = f.photo; });
+      ph = 150; const cx = tx + ph / 2, cy = H / 2 - ((tl.length * size * 1.15 + 24 + sl.length * 40 + ph + 30) / 2) + ph / 2;
+      const m = Math.min(im.naturalWidth, im.naturalHeight);
+      g.save(); g.beginPath(); g.arc(cx, cy, ph / 2, 0, Math.PI * 2); g.fillStyle = "#fff"; g.fill(); g.beginPath(); g.arc(cx, cy, ph / 2 - 6, 0, Math.PI * 2); g.clip();
+      g.drawImage(im, (im.naturalWidth - m) / 2, (im.naturalHeight - m) / 2, m, m, cx - ph / 2 + 6, cy - ph / 2 + 6, ph - 12, ph - 12); g.restore();
+      ph += 30;
+    } catch { ph = 0; }
+  }
+  let y = H / 2 - ((tl.length * size * 1.15 + 24 + sl.length * 40 - ph) / 2) + size * 0.85;
+  g.fillStyle = "#0f172a"; g.font = `800 ${size}px ${font}`;
+  for (const l of tl) { g.fillText(l, tx, y); y += size * 1.15; }
+  y += 16 - size * 0.15 + 30; g.fillStyle = "#475569"; g.font = `500 30px ${font}`;
+  for (const l of sl) { g.fillText(l, tx, y); y += 40; }
+  g.fillStyle = "#7c3aed"; g.font = `800 28px ${font}`; g.fillText(S.brand?.name || "QRPanel", tx, H - 60);
+  // JPG: pesa poco (WhatsApp no muestra imágenes de más de ~300 KB)
+  return new Promise((r) => cv.toBlob(r, "image/jpeg", 0.9));
 }
 const canShareFiles = () => !!(APP || navigator.canShare?.({ files: [new File([new Blob(["x"], { type: "image/png" })], "q.png", { type: "image/png" })] }));
 
@@ -997,7 +1443,7 @@ async function shareDlg(q, redraw) {
   const imgP = uploadShareImage(q);
   const r = await dialog({
     title: "Compartir «" + q.name + "»",
-    body: `<div class="steps" style="gap:12px"><div class="small muted">Cualquiera con este enlace podrá ver el QR y descargarlo en PNG, SVG o PDF, sin necesitar cuenta.</div>
+    body: `<div class="steps" style="gap:12px"><div class="small muted">Cualquiera con este enlace podrá ver el QR y descargarlo en PNG, SVG o PDF, sin necesitar cuenta.</div>${httpsNote(q.share_url)}
       <div class="row"><input class="input grow" id="shurl" value="${esc(q.share_url)}" readonly><button class="btn" id="shcopy">${icon("copy", "sm")}Copiar</button></div>
       <div class="row"><a class="btn sm ghost" href="${esc(q.share_url)}" target="_blank" rel="noopener">${icon("eye", "sm")}Ver la página</a>
       ${canShareText() ? `<button class="btn sm ghost" id="shnat">${icon("share", "sm")}Enviar…</button>` : ""}</div>
@@ -1105,6 +1551,7 @@ async function qrStatsDlg(q) {
         <div class="card chart"><h3>Dispositivo</h3>${hbars(st.devices)}</div>
         <div class="card chart"><h3>Navegador</h3>${hbars(st.browsers)}</div>
       </div>
+      ${st.tables?.length ? `<div class="card chart" style="margin-top:14px"><h3>${(SPOTS[q.kind] || { stat: "Por etiqueta" }).stat}</h3>${hbars(st.tables.map((x) => ({ ...x, k: (SPOTS[q.kind] ? SPOTS[q.kind].label + " " : "") + x.k })))}</div>` : ""}
       <div class="card chart" style="margin-top:14px"><h3>Últimas lecturas</h3>${st.recent.length ? `<table style="width:100%;font-size:13px;border-collapse:collapse">${st.recent.map((r) => `<tr><td style="padding:5px 0">${fmtDate(r.at)}</td><td>${esc(r.device)}</td><td>${esc(r.os)}</td><td>${esc(r.browser)}</td></tr>`).join("")}</table>` : `<div class="muted small">Todavía nadie lo ha escaneado.</div>`}</div>`,
   });
 }
@@ -1297,6 +1744,8 @@ async function viewSettings(v) {
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
   v.innerHTML = `<div class="page-head"><div><h1>Ajustes</h1><p>${srv ? `Conectado como <b>${esc(S.me.username)}</b>${S.me.is_admin ? " (administrador)" : ""}.` : "Modo local: todo se guarda en este navegador."}</p></div></div>
   <div class="settings">
+    <div class="card pad"><h3>${icon("globe")}Idioma / Language</h3>${langSeg("lang-seg")}</div>
+
     <div class="card pad"><h3>${icon("sun")}Apariencia</h3>
       <div class="seg" id="theme-seg">${[["system", "Como el sistema"], ["light", "Claro"], ["dark", "Oscuro"]].map(([k, t]) => `<button data-v="${k}" class="${theme === k ? "on" : ""}">${t}</button>`).join("")}</div></div>
 
@@ -1315,12 +1764,18 @@ async function viewSettings(v) {
       <div class="small muted">Descarga todos tus QR, logos y plantillas en un archivo, o recupéralos desde uno.</div>
       <div class="row"><button class="btn" id="exp">${icon("download")}Exportar</button><button class="btn" id="imp">${icon("upload")}Importar</button><input type="file" id="impf" accept=".json,application/json" hidden></div></div>
 
-    ${srv ? `<div class="card pad"><h3>${icon("user")}Tu cuenta</h3><div class="row"><button class="btn" id="pw">${icon("key")}Cambiar contraseña</button><button class="btn danger" id="out">${icon("logout")}Salir</button></div></div>` : ""}
+    ${srv ? `<div class="card pad"><h3>${icon("user")}Tu cuenta</h3>
+      <div class="row acct"><span class="avatar xl" id="avbig">${avatarInner(S.me.username, S.me.avatar)}</span>
+        <div class="grow"><b>${esc(S.me.username)}</b><div class="small muted">Tu foto de perfil o el logo de tu marca. Sale arriba a la derecha y en las páginas que compartes.</div>
+        <div class="row" style="flex-wrap:wrap;margin-top:6px"><button class="btn sm" id="avset">${icon("image", "sm")}${S.me.avatar ? "Cambiar foto o logo" : "Poner foto o logo"}</button>${S.me.avatar ? `<button class="btn sm ghost" id="avdel">Quitar</button>` : ""}<input type="file" id="avfile" accept="image/*" hidden></div></div></div>
+      <div class="row"><button class="btn" id="pw">${icon("key")}Cambiar contraseña</button><button class="btn danger" id="out">${icon("logout")}Salir</button></div></div>` : ""}
 
     ${admin ? `<div class="card pad"><h3>${icon("globe")}Dirección pública</h3>
       <div class="small muted">La dirección con la que se llega a QRPanel desde internet. Es la que llevan dentro los QR dinámicos, así que ponla <b>antes</b> de imprimirlos. Ejemplo: <code>https://qr.midominio.com</code></div>
       <div class="row"><input class="input grow" id="purl" value="${esc(S.me.public_url_custom || "")}" placeholder="${esc(location.origin)}"><button class="btn primary" id="psave">Guardar</button></div>
-      <div class="small faint">Ahora se usa: ${esc(S.me.public_url)}</div></div>
+      <div class="small faint">Ahora se usa: ${esc(S.me.public_url)}</div>
+      ${httpsNote(S.me.public_url || location.origin, true).replace("Esa dirección", "La dirección que se usa ahora")}
+      <div class="small muted">Con <b>https</b> y un dominio funciona todo: los QR desde cualquier móvil, la <b>ubicación</b> en la ficha de mascota y la <b>imagen del QR</b> al compartir en WhatsApp o Telegram. Con <code>http://</code> o una IP de casa (192.168…) solo funciona dentro de tu wifi.</div></div>
 
     <div class="card pad"><h3>${icon("sparkle")}Tu marca</h3>
       <div class="small muted">Pon el nombre y el logo de tu negocio o tu familia. Se ven arriba, en la pantalla de entrada y en las páginas de QR compartidos.</div>
@@ -1336,6 +1791,7 @@ async function viewSettings(v) {
       <div class="row"><a class="btn sm" href="https://github.com/pctecnikk/qrpanel" target="_blank" rel="noopener">${icon("github", "sm")}GitHub</a><a class="btn sm ghost" href="/static/vendor/LICENSES.txt" target="_blank">Licencias</a></div>
       <div class="small faint">Atajos: Ctrl+S guardar · Ctrl+Z deshacer · Ctrl+Y rehacer · Ctrl+V pegar logo o imagen.</div></div>
   </div>`;
+  $("#lang-seg", v).onclick = (e) => { const b = e.target.closest("[data-l]"); if (b && b.dataset.l !== LANG) setLang(b.dataset.l); };
   $("#theme-seg", v).onclick = (e) => { const b = e.target.closest("[data-v]"); if (!b) return; localStorage.setItem("qp-theme", b.dataset.v); applyTheme(); $$("#theme-seg button", v).forEach((x) => x.classList.toggle("on", x === b)); $("#theme").innerHTML = icon(document.documentElement.dataset.theme === "dark" ? "sun" : "moon"); };
   $("#appsrv", v)?.addEventListener("click", () => APP.changeServer());
   $("#appnews", v)?.addEventListener("click", () => APP.news());
@@ -1352,6 +1808,15 @@ async function viewSettings(v) {
     } catch (err) { toast(err.message, "bad"); }
   };
   $("#pw", v)?.addEventListener("click", changePassword);
+  $("#avset", v)?.addEventListener("click", () => $("#avfile", v).click());
+  $("#avfile", v)?.addEventListener("change", async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    try { const r = await S.store.setAvatar(await avatarFrom(file)); S.me.avatar = r.avatar; shell(); route(); toast("Foto de perfil puesta"); }
+    catch (err) { toast(err.message, "bad"); }
+  });
+  $("#avdel", v)?.addEventListener("click", async () => {
+    try { await S.store.setAvatar(null); S.me.avatar = null; shell(); route(); toast("Foto quitada"); } catch (err) { toast(err.message, "bad"); }
+  });
   $("#out", v)?.addEventListener("click", async () => { await S.store.logout(); location.reload(); });
   if (!admin) return;
   let blogo = S.brand?.logo || null;
@@ -1370,7 +1835,7 @@ async function viewSettings(v) {
   async function users() {
     const list = await S.store.users();
     const st = { approved: ["Activo", "ok"], pending: ["Pendiente", ""], blocked: ["Bloqueado", "off"] };
-    $("#ulist", v).innerHTML = list.map((u) => `<div class="urow"><span class="avatar">${esc(u.username[0].toUpperCase())}</span><div class="grow"><b>${esc(u.username)}</b>${u.is_admin ? ' <span class="chip">admin</span>' : ""} <span class="chip ${st[u.status][1]}">${st[u.status][0]}</span><div class="small muted">${fmtN(u.qrs)} QR · ${fmtN(u.scans)} lecturas · desde ${fmtDate(u.created)}</div></div>
+    $("#ulist", v).innerHTML = list.map((u) => `<div class="urow"><span class="avatar">${avatarInner(u.username, u.avatar)}</span><div class="grow"><b>${esc(u.username)}</b>${u.is_admin ? ' <span class="chip">admin</span>' : ""} <span class="chip ${st[u.status][1]}">${st[u.status][0]}</span><div class="small muted">${fmtN(u.qrs)} QR · ${fmtN(u.scans)} lecturas · desde ${fmtDate(u.created)}</div></div>
       ${u.status === "pending" ? `<button class="btn sm primary" data-u="${u.id}" data-a="approve">Aprobar</button>` : ""}
       ${u.username !== S.me.username ? `<button class="btn ghost icon" data-u="${u.id}" data-a="more">${icon("dots")}</button>` : ""}</div>`).join("");
     $("#ulist", v).onclick = async (e) => {

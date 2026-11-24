@@ -47,6 +47,11 @@ const P = {
   eyeoff: "M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.3 4.2M6.6 6.6C3.6 8.5 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2",
   logout: "M9 21H5V3h4M16 17l5-5-5-5M21 12H9",
   lock: "M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4",
+  bed: "M3 18v-8m0 4h18m0 4v-6a3 3 0 0 0-3-3h-7v5M7 11.5a1.5 1.5 0 1 0 0-.01",
+  building: "M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16m0-10h2a2 2 0 0 1 2 2v8M2 21h20M8 7h4M8 11h4M8 15h4",
+  house: "M3 11l9-7 9 7M5 9.5V20h14V9.5M10 20v-5h4v5",
+  ticket: "M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4zM14 6v12",
+  food: "M7 3v7M5 3v4.5a2 2 0 0 0 4 0V3M7 10.5V21M17 21V3c-2.2 0-3.5 2.6-3.5 6.5S14.8 13 17 13",
   paw: "M8.5 7.5a2 2.5 0 1 0 0-.01zM15.5 7.5a2 2.5 0 1 0 0-.01zM5 12a1.8 2.2 0 1 0 0-.01zM19 12a1.8 2.2 0 1 0 0-.01zM12 12.5c-3 0-5.5 3.6-5.5 5.6 0 1.6 1.4 2.4 2.8 2.4 1.2 0 1.6-.6 2.7-.6s1.5.6 2.7.6c1.4 0 2.8-.8 2.8-2.4 0-2-2.5-5.6-5.5-5.6z",
   cube: "M12 2l9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10",
   key: "M15 7a4 4 0 1 1-3.9 5H9v2H7v2H4v-3l6.1-6.1A4 4 0 0 1 15 7zM16 8h.01",
@@ -269,4 +274,71 @@ export function fileToCanvas(file, max = 1600) {
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("No se pudo abrir la imagen")); };
     img.src = url;
   });
+}
+
+/**
+ * Encuadrar una foto antes de guardarla: se mueve arrastrando y se acerca con la rueda, el
+ * pellizco o la barra. Devuelve un canvas recortado (o null si se cancela).
+ * aspect = ancho / alto del recorte. round = enseña el círculo que se verá en la ficha.
+ */
+export async function cropDlg(file, { aspect = 1, out = 720, round = false, title = "Encuadra la foto" } = {}) {
+  const src = await fileToCanvas(file, 2000);
+  const W = 320, H = Math.round(W / aspect);
+  const base = Math.max(W / src.width, H / src.height); // lo mínimo para llenar el recuadro
+  let z = 1, ox = 0, oy = 0;
+  // de entrada: centrado en horizontal y, si la foto es alta, cerca de arriba (donde suele estar la cabeza)
+  const fit = () => {
+    const s = base * z, dw = src.width * s, dh = src.height * s;
+    ox = Math.min(0, Math.max(W - dw, ox)); oy = Math.min(0, Math.max(H - dh, oy));
+  };
+  { const s = base, dw = src.width * s, dh = src.height * s; ox = (W - dw) / 2; oy = dh > H ? -(dh - H) * 0.18 : (H - dh) / 2; }
+  let cv;
+  const draw = () => {
+    fit();
+    const g = cv.getContext("2d"), s = base * z;
+    g.clearRect(0, 0, W, H); g.drawImage(src, ox, oy, src.width * s, src.height * s);
+    if (round) {
+      g.save(); g.fillStyle = "rgba(0,0,0,.45)"; g.beginPath(); g.rect(0, 0, W, H);
+      g.arc(W / 2, H / 2, Math.min(W, H) / 2 - 2, 0, Math.PI * 2, true); g.fill("evenodd"); g.restore();
+    }
+  };
+  const zoomAt = (nz, px = W / 2, py = H / 2) => {
+    nz = Math.min(5, Math.max(1, nz));
+    const s0 = base * z, s1 = base * nz;
+    ox = px - (px - ox) * s1 / s0; oy = py - (py - oy) * s1 / s0; z = nz; draw();
+  };
+  const ok = await dialog({
+    title,
+    body: `<div class="crop"><canvas width="${W}" height="${H}" style="width:${W}px;max-width:100%;touch-action:none;cursor:grab;border-radius:16px;background:#e5e7eb;display:block;margin:0 auto"></canvas>
+      <input type="range" min="1" max="5" step="0.01" value="1" aria-label="Zoom" style="width:100%;margin-top:12px">
+      <div class="small muted" style="text-align:center;margin-top:6px">Arrastra para mover la foto y usa la barra (o la rueda) para acercar.</div></div>`,
+    buttons: [["Cancelar", false], ["Usar la foto", true, "primary"]],
+    onOpen: (w) => {
+      cv = w.querySelector("canvas"); const range = w.querySelector("input[type=range]");
+      const pts = new Map(); let last = null, pinch = 0;
+      const pos = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; };
+      cv.addEventListener("pointerdown", (e) => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, pos(e)); last = pos(e); cv.style.cursor = "grabbing"; });
+      cv.addEventListener("pointermove", (e) => {
+        if (!pts.has(e.pointerId)) return;
+        pts.set(e.pointerId, pos(e));
+        if (pts.size === 2) {
+          const [a, b] = [...pts.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+          if (pinch) { zoomAt(z * d / pinch, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); range.value = z; }
+          pinch = d; return;
+        }
+        const p = pos(e); ox += p[0] - last[0]; oy += p[1] - last[1]; last = p; draw();
+      });
+      const up = (e) => { pts.delete(e.pointerId); pinch = 0; last = pts.size ? [...pts.values()][0] : null; cv.style.cursor = "grab"; };
+      cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+      cv.addEventListener("wheel", (e) => { e.preventDefault(); const p = pos(e); zoomAt(z * (e.deltaY < 0 ? 1.08 : 1 / 1.08), p[0], p[1]); range.value = z; }, { passive: false });
+      range.addEventListener("input", () => zoomAt(+range.value));
+      draw();
+    },
+  });
+  if (!ok) return null;
+  const o = document.createElement("canvas"); o.width = out; o.height = Math.round(out / aspect);
+  const k = o.width / W, s = base * z, g = o.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, o.width, o.height);
+  g.drawImage(src, ox * k, oy * k, src.width * s * k, src.height * s * k);
+  return o;
 }

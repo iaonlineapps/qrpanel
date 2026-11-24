@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import db, limits
+from . import db, limits, i18n
 from .version import VERSION
 from .config import ALLOW_REGISTER, PUBLIC_URL
 
@@ -53,11 +53,35 @@ async def _security_headers(request: Request, call_next):
     return r
 
 
+@app.middleware("http")
+async def _public_lang(request: Request, call_next):
+    """Las páginas públicas (/r/... y /s/...) salen en inglés si toca."""
+    r = await call_next(request)
+    path = request.url.path
+    if not (path.startswith("/r/") or path.startswith("/s/")) or not r.headers.get("content-type", "").startswith("text/html"):
+        return r
+    owner = None
+    parts = path.split("/")
+    if len(parts) > 2 and parts[1] == "r":
+        row = db.q1("SELECT u.lang FROM qrs q JOIN users u ON u.id=q.user_id WHERE q.code=?", parts[2])
+        owner = row["lang"] if row else None
+    lang = i18n.pick(request.query_params.get("lang"), request.cookies.get("qp_lang"), request.headers.get("accept-language"), owner)
+    if lang == "es":
+        return r
+    body = b"".join([c async for c in r.body_iterator])
+    html = i18n.localize(body.decode("utf-8", "replace"), lang)
+    headers = {k: v for k, v in r.headers.items() if k.lower() not in ("content-length", "content-type")}
+    return HTMLResponse(html, status_code=r.status_code, headers=headers)
+
+
 # --- autenticacion -------------------------------------------------------------
 def current_user(request: Request):
     u = db.session_user(request.cookies.get(COOKIE, ""))
     if not u:
         raise HTTPException(401, "Inicia sesión")
+    lang = request.cookies.get("qp_lang")
+    if lang in ("es", "en") and u["lang"] != lang:  # sus páginas públicas salen por defecto en su idioma
+        db.run("UPDATE users SET lang=? WHERE id=?", lang, u["id"])
     return u
 
 
@@ -169,7 +193,22 @@ def me(request: Request, u=Depends(current_user)):
     pending = db.q1("SELECT COUNT(*) n FROM users WHERE status='pending'")["n"] if u["is_admin"] else 0
     return {"username": u["username"], "is_admin": bool(u["is_admin"]), "pending": pending,
             "version": VERSION, "public_url": public_base(request),
-            "public_url_custom": db.setting("public_url") or PUBLIC_URL, "brand": brand()}
+            "public_url_custom": db.setting("public_url") or PUBLIC_URL, "brand": brand(),
+            "avatar": u["avatar"]}
+
+
+class AvatarIn(BaseModel):
+    data: str | None = Field(None, max_length=300_000)
+
+
+@app.put("/api/me/avatar")
+def set_avatar(b: AvatarIn, u=Depends(current_user)):
+    """Foto de perfil o logo de la marca del usuario (data URL pequeña). null la quita."""
+    d = (b.data or "").strip() or None
+    if d and not PHOTO_RE.match(d):
+        raise HTTPException(400, "Tiene que ser una imagen PNG, JPG o WebP")
+    db.run("UPDATE users SET avatar=? WHERE id=?", d, u["id"])
+    return {"avatar": d}
 
 
 # --- QR ------------------------------------------------------------------------
@@ -233,19 +272,22 @@ def _row(r, base: str) -> dict:
     return d
 
 
+PAGE_KINDS = ("pet", "menu", "hotel", "office", "shop", "eventpage", "home")  # tipos cuya página pinta el servidor
+
+
 def _check(b: QRIn, qid: int | None = None) -> tuple[str | None, str | None]:
     blob = json.dumps(b.design) + json.dumps(b.fields)
     if len(blob) > MAX_JSON:
         raise HTTPException(413, "El diseño es demasiado grande")
-    if b.kind == "pet":
-        photo = b.fields.get("photo") or ""
-        if photo and not (PHOTO_RE.match(photo) and len(photo) <= 400_000):
-            b.fields["photo"] = ""
+    for k in ("photo", "logo"):  # fotos de la ficha de mascota y logo de la carta
+        img = b.fields.get(k) or ""
+        if b.kind in PAGE_KINDS and img and not (PHOTO_RE.match(img) and len(img) <= 400_000):
+            b.fields[k] = ""
     if not b.dynamic:
         return None, None
     target = (b.target or "").strip()
-    if b.kind == "pet":
-        target = "pet:"  # la ficha la pinta el servidor en /r/{code}
+    if b.kind in PAGE_KINDS:
+        target = b.kind + ":"  # la ficha / la carta la pinta el servidor en /r/{code}
     elif not TARGET_RE.match(target):
         raise HTTPException(400, "Un QR dinámico necesita un destino válido (https://, mailto:, tel:...)")
     code = (b.code or "").strip()
@@ -353,8 +395,8 @@ async def share_image(qid: int, request: Request, u=Depends(current_user)):
     data = await request.body()
     if len(data) > MAX_SHARE_PNG:
         raise HTTPException(413, "La imagen es demasiado grande")
-    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
-        raise HTTPException(400, "Tiene que ser una imagen PNG")
+    if not (data.startswith(b"\x89PNG\r\n\x1a\n") or data.startswith(b"\xff\xd8\xff")):
+        raise HTTPException(400, "Tiene que ser una imagen PNG o JPG")
     db.run("INSERT INTO share_images(qr_id,png,updated) VALUES(?,?,?) "
            "ON CONFLICT(qr_id) DO UPDATE SET png=excluded.png, updated=excluded.updated", qid, data, time.time())
     return {"ok": True}
@@ -369,7 +411,7 @@ def share_off(qid: int, request: Request, u=Depends(current_user)):
 
 @app.get("/api/share/{token}")
 def share_get(token: str):
-    r = db.q1("SELECT q.*, u.username FROM qrs q JOIN users u ON u.id=q.user_id WHERE q.share=?", token)
+    r = db.q1("SELECT q.*, u.username, u.avatar FROM qrs q JOIN users u ON u.id=q.user_id WHERE q.share=?", token)
     if not r or len(token) < 10:
         raise HTTPException(404, "Este enlace ya no existe")
     design = json.loads(r["design"] or "{}")
@@ -378,16 +420,40 @@ def share_get(token: str):
         lg = db.q1("SELECT data FROM logos WHERE id=? AND user_id=?", logo["id"], r["user_id"])
         logo["src"], logo["id"] = (lg["data"] if lg else None), None
     return {"name": r["name"], "kind": r["kind"], "content": r["content"], "design": design,
-            "owner": r["username"], "dynamic": bool(r["dynamic"]), "updated": r["updated"], "brand": brand()}
+            "owner": r["username"], "owner_avatar": r["avatar"], "dynamic": bool(r["dynamic"]), "updated": r["updated"], "brand": brand()}
+
+
+def _img_response(qid: int | None):
+    img = db.q1("SELECT png, updated FROM share_images WHERE qr_id=?", qid) if qid else None
+    if not img:
+        return FileResponse(STATIC / "icons" / "og.jpg", media_type="image/jpeg")
+    mime = "image/jpeg" if img["png"][:3] == b"\xff\xd8\xff" else "image/png"
+    return Response(img["png"], media_type=mime, headers={"Cache-Control": "public, max-age=300"})
 
 
 @app.get("/s/{token}/qr.png")
 def share_png(token: str):
     r = db.q1("SELECT q.id FROM qrs q WHERE q.share=?", token) if len(token) >= 10 else None
-    img = db.q1("SELECT png, updated FROM share_images WHERE qr_id=?", r["id"]) if r else None
-    if not img:
-        return FileResponse(STATIC / "icons" / "icon-512.png", media_type="image/png")
-    return Response(img["png"], media_type="image/png", headers={"Cache-Control": "public, max-age=300"})
+    return _img_response(r["id"] if r else None)
+
+
+def _og(title: str, desc: str, url: str, img: str, w: int = 1200, h: int = 630) -> str:
+    """Etiquetas para la vista previa al pegar el enlace en WhatsApp, Telegram, correo..."""
+    t, d = escape(title), escape(desc)
+    sec = f'<meta property="og:image:secure_url" content="{img}">' if img.startswith("https://") else ""
+    return (f'<meta property="og:type" content="website"><meta property="og:site_name" content="{escape(brand()["name"])}">'
+            f'<meta property="og:title" content="{t}"><meta property="og:description" content="{d}">'
+            f'<meta name="description" content="{d}">'
+            f'<meta property="og:image" content="{img}">{sec}'
+            f'<meta property="og:image:width" content="{w}"><meta property="og:image:height" content="{h}">'
+            f'<meta property="og:image:alt" content="{t}"><meta property="og:url" content="{url}">'
+            f'<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{img}">')
+
+
+def _card_v(qid: int) -> int:
+    """Cambia cada vez que se sube una imagen nueva, para que WhatsApp no use la vieja."""
+    c = db.q1("SELECT updated FROM share_images WHERE qr_id=?", qid)
+    return int(c["updated"]) if c else 0
 
 
 @app.get("/s/{token}")
@@ -398,13 +464,9 @@ def share_page(token: str, request: Request):
         # vista previa al pegar el enlace en WhatsApp, Telegram, correo...
         base = public_base(request)
         name = escape(r["name"] or "Código QR")
-        img = f"{base}/s/{escape(token)}/qr.png?v={int(r['updated'] or 0)}"
-        meta = (f'<meta property="og:type" content="website">'
-                f'<meta property="og:title" content="{name}">'
-                f'<meta property="og:description" content="Código QR compartido con {escape(brand()["name"])}. Ábrelo para verlo y descargarlo.">'
-                f'<meta property="og:image" content="{img}"><meta property="og:image:type" content="image/png">'
-                f'<meta property="og:url" content="{base}/s/{escape(token)}">'
-                f'<meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="{img}">')
+        img = f"{base}/s/{escape(token)}/qr.png?v={_card_v(r['id'])}"
+        meta = _og(r["name"] or "Código QR", "Código QR compartido. Ábrelo para verlo y descargarlo en PNG, SVG o PDF.",
+                   f"{base}/s/{escape(token)}", img)
         html = html.replace("<title>Código QR compartido · QRPanel</title>", f"<title>{name} · Código QR</title>{meta}", 1)
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
@@ -433,6 +495,8 @@ def qr_stats(qid: int, days: int = 30, u=Depends(current_user)):
         "os": _group("SELECT os k, COUNT(*) n FROM scans WHERE qr_id=? GROUP BY os ORDER BY n DESC", qid),
         "browsers": _group("SELECT browser k, COUNT(*) n FROM scans WHERE qr_id=? GROUP BY browser ORDER BY n DESC LIMIT 6", qid),
         "hours": _hours(qid),
+        "tables": _group("SELECT tag k, COUNT(*) n FROM scans WHERE qr_id=? AND tag IS NOT NULL "
+                         "GROUP BY tag ORDER BY n DESC LIMIT 60", qid),
         "recent": [dict(x) for x in db.q(
             "SELECT at, device, os, browser FROM scans WHERE qr_id=? ORDER BY at DESC LIMIT 15", qid)],
     }
@@ -574,7 +638,7 @@ def import_data(b: ImportIn, request: Request, u=Depends(current_user)):
 @app.get("/api/admin/users")
 def admin_users(a=Depends(admin_user)):
     return [dict(r) for r in db.q(
-        "SELECT u.id, u.username, u.is_admin, u.status, u.created, "
+        "SELECT u.id, u.username, u.is_admin, u.status, u.created, u.avatar, "
         "(SELECT COUNT(*) FROM qrs q WHERE q.user_id=u.id) qrs, "
         "(SELECT COALESCE(SUM(scans),0) FROM qrs q WHERE q.user_id=u.id) scans "
         "FROM users u ORDER BY u.status='pending' DESC, u.username")]
@@ -721,7 +785,7 @@ def _pet_page(r) -> HTMLResponse:
     f = json.loads(r["fields"] or "{}")
     e = lambda k: escape(str(f.get(k) or "").strip())
     name = e("name") or "Mascota"
-    species = {"perro": "Perro", "gato": "Gato"}.get(f.get("species") or "perro", "")
+    species = {"perro": "Perro", "gato": "Gato", "conejo": "Conejo", "pajaro": "Pájaro", "hamster": "Hámster", "tortuga": "Tortuga", "caballo": "Caballo", "huron": "Hurón"}.get(f.get("species") or "perro", "")
     phone, phone2 = _tel(f.get("phone")), _tel(f.get("phone2"))
     wa = re.sub(r"[^0-9]", "", phone)
     found = quote(f"¡Hola! He encontrado a {f.get('name') or 'tu mascota'} gracias a su QR.")
@@ -751,12 +815,12 @@ def _pet_page(r) -> HTMLResponse:
     reward = f'<div class="reward">🎁 {e("reward")}</div>' if f.get("reward") else ""
     html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
-<title>{name} · ¿Me has encontrado?</title><link rel="stylesheet" href="/static/pet.css"></head><body>
+<title>{name} · ¿Me has encontrado?</title><link rel="stylesheet" href="/static/pet.css?v=2"></head><body>
 <main>{lost}{photo_html}<h1>Hola, soy {name}</h1><p class="sub">{species}{" · " if species and f.get("breed") else ""}{e("breed")}</p>
 <p class="lead">Si me has encontrado, por favor avisa a mi familia. ¡Gracias!</p>{reward}
 <div class="btns">{btns}</div>{f'<dl>{info}</dl>' if info else ""}{blocks}
 <p class="foot">Ficha hecha con QRPanel</p></main>
-<script src="/static/js/pet.js"></script></body></html>"""
+<script src="/static/js/pet.js?v=3"></script></body></html>"""
     return HTMLResponse(html, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
 
 
@@ -797,11 +861,66 @@ def _open(code: str):
     return r, None
 
 
+# Los robots que leen un enlace para hacer la vista previa (WhatsApp, Telegram...). No cuentan
+# como lectura (ni gastan las lecturas de un QR que caduca) y reciben una pagina con la imagen.
+PREVIEW_BOT = re.compile(r"whatsapp|telegrambot|facebookexternalhit|facebot|meta-externalagent|twitterbot|slackbot|"
+                         r"discordbot|linkedinbot|skypeuripreview|redditbot|pinterest|embedly|vkshare|viber|"
+                         r"mattermost|rocket\.chat|signal|bitlybot|iframely|google-pagerenderer|applebot", re.I)
+
+
+def _preview(r, request: Request) -> HTMLResponse:
+    base = public_base(request)
+    url = f"{base}/r/{escape(r['code'])}"
+    v = _card_v(r["id"])
+    if r["pin"]:
+        title, desc = "Código QR protegido", "Hace falta un PIN para abrirlo."
+    elif r["kind"] == "menu":
+        f = json.loads(r["fields"] or "{}")
+        title = f"{(f.get('name') or 'Nuestra carta').strip()} · Carta"
+        t = _table(request)
+        desc = f"Mesa {t}. Abre el enlace para ver la carta." if t else "Abre el enlace para ver la carta, el horario y cómo llegar."
+    elif r["kind"] in ("hotel", "office"):
+        f = json.loads(r["fields"] or "{}")
+        title = (f.get("name") or ("Bienvenido" if r["kind"] == "hotel" else "Recepción")).strip()
+        t = _table(request)
+        desc = (f"Habitación {t}. " if t and r["kind"] == "hotel" else "") + (
+            "WiFi, horarios, servicios y contacto con recepción." if r["kind"] == "hotel" else "Cómo llegar, horario, contactos y aviso de llegada.")
+    elif r["kind"] in ("shop", "eventpage", "home"):
+        f = json.loads(r["fields"] or "{}")
+        title = (f.get("name") or "").strip() or {"shop": "Producto", "eventpage": "Evento", "home": "Inmueble"}[r["kind"]]
+        if r["kind"] == "shop":
+            pr = _euro(f.get("offer") or f.get("price"))
+            desc = (f"{pr} · " if pr else "") + (str(f.get("brand") or "").strip() or "Abre el enlace para ver la ficha del producto.")
+        elif r["kind"] == "eventpage":
+            desc = " · ".join(x for x in (_when(f.get("start")), str(f.get("venue") or "").strip()) if x) or "Abre el enlace para ver el programa."
+        else:
+            bits = [OPS.get(f.get("op") or "venta", ""), _euro(f.get("price")), f.get("m2") and f"{f['m2']} m²", f.get("rooms") and f"{f['rooms']} hab.", f.get("address")]
+            desc = " · ".join(str(b).strip() for b in bits if b)
+    elif r["kind"] == "pet":
+        f = json.loads(r["fields"] or "{}")
+        nm = (f.get("name") or "").strip()
+        title = f"Hola, soy {nm}" if nm else "Placa de mascota"
+        desc = "¡Me he perdido! Abre el enlace para avisar a mi familia." if f.get("lost") else "Si me encuentras, abre el enlace para avisar a mi familia."
+    else:
+        title, desc = r["name"] or "Código QR", "Abre el enlace para ir a su destino."
+    img = f"{url}/qr.png?v={v}"
+    head = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{escape(title)}</title>{_og(title, desc, url, img)}</head>'
+    return HTMLResponse(head + f'<body><a href="{url}">{escape(title)}</a></body></html>', headers={"Cache-Control": "no-store"})
+
+
+@app.get("/r/{code}/qr.png")
+def go_png(code: str):
+    r = db.q1("SELECT id FROM qrs WHERE code=? AND dynamic=1", code)
+    return _img_response(r["id"] if r else None)
+
+
 @app.get("/r/{code}")
 def go(code: str, request: Request):
     r, page = _open(code)
     if page:
         return page
+    if PREVIEW_BOT.search(request.headers.get("user-agent", "")):
+        return _preview(r, request)
     if r["pin"]:
         return _pin_page(code, r["name"])
     return _scan(r, request)
@@ -828,17 +947,393 @@ async def go_pin(code: str, request: Request):
     return _scan(r, request, 303)
 
 
+TAG_RE = re.compile(r"^[A-Za-z0-9 _.-]{1,16}$")
+
+
+def _table(request: Request) -> str | None:
+    """La mesa (u otra etiqueta) que lleva el QR en ?m=, por ejemplo /r/carta?m=5."""
+    t = (request.query_params.get("m") or "").strip()
+    return t if TAG_RE.match(t) else None
+
+
+ALLERGENS = [  # (palabras con las que se reconoce, emoji, nombre)
+    (("gluten", "trigo"), "🌾", "Gluten"), (("crustaceo", "crustáceo", "marisco"), "🦐", "Crustáceos"),
+    (("huevo",), "🥚", "Huevo"), (("pescado",), "🐟", "Pescado"), (("cacahuete", "maní"), "🥜", "Cacahuetes"),
+    (("soja",), "🫘", "Soja"), (("leche", "lact", "lácte"), "🥛", "Lácteos"),
+    (("frutos secos", "fruto seco", "cáscara", "cascara", "nuez", "almendra", "avellana"), "🌰", "Frutos secos"),
+    (("apio",), "🥬", "Apio"), (("mostaza",), "🟡", "Mostaza"), (("sésamo", "sesamo"), "⚪", "Sésamo"),
+    (("sulfito",), "🍷", "Sulfitos"), (("altramuz",), "🌼", "Altramuces"), (("molusco",), "🦪", "Moluscos"),
+    (("vegano", "vegana"), "🌱", "Vegano"), (("vegetariano", "vegetariana"), "🥕", "Vegetariano"),
+    (("picante",), "🌶️", "Picante"), (("sin gluten",), "✅", "Sin gluten"),
+]
+
+
+def _allergen(word: str) -> str:
+    w = word.strip().lower()
+    if not w:
+        return ""
+    if "sin gluten" in w:
+        return '<span class="al ok">✅ Sin gluten</span>'
+    for keys, emo, name in ALLERGENS:
+        if any(k in w for k in keys):
+            return f'<span class="al">{emo} {escape(name)}</span>'
+    return f'<span class="al">{escape(word.strip())}</span>'
+
+
+def _parse_menu(text: str) -> list[dict]:
+    """Carta escrita así:  «# Sección», «Plato | precio | alérgenos» y, debajo, su descripción."""
+    secs: list[dict] = []
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            secs.append({"name": line.lstrip("#").strip(), "items": []})
+            continue
+        if not secs:
+            secs.append({"name": "", "items": []})
+        if "|" in line or not secs[-1]["items"]:
+            parts = [p.strip() for p in line.lstrip("-•*").split("|")]
+            secs[-1]["items"].append({"name": parts[0], "price": parts[1] if len(parts) > 1 else "",
+                                      "al": [a for a in re.split(r"[,;/]", parts[2]) if a.strip()] if len(parts) > 2 else [],
+                                      "desc": ""})
+        else:
+            it = secs[-1]["items"][-1]
+            it["desc"] = (it["desc"] + " " + line).strip()
+    return [s for s in secs if s["items"] or s["name"]]
+
+
+def _menu_page(r, table: str | None = None) -> HTMLResponse:
+    f = json.loads(r["fields"] or "{}")
+    e = lambda k: escape(str(f.get(k) or "").strip())
+    name = e("name") or "Nuestra carta"
+    logo = f.get("logo") or ""
+    logo_html = f'<img class="logo" src="{escape(logo)}" alt="">' if PHOTO_RE.match(logo) else ""
+    secs = _parse_menu(f.get("carta") or "")
+    nav = "".join(f'<a href="#s{i}">{escape(s["name"])}</a>' for i, s in enumerate(secs) if s["name"])
+    body = ""
+    for i, s in enumerate(secs):
+        items = ""
+        for it in s["items"]:
+            price = escape(it["price"])
+            if price and re.fullmatch(r"[\d.,]+", price):
+                price += " €"
+            al = "".join(_allergen(a) for a in it["al"])
+            items += (f'<li><div class="it"><b>{escape(it["name"])}</b><i></i><span class="pr">{price}</span></div>'
+                      f'{f"<p>{escape(it[chr(100) + chr(101) + chr(115) + chr(99)])}</p>" if it["desc"] else ""}'
+                      f'{f"<div class=als>{al}</div>" if al else ""}</li>')
+        body += f'<section id="s{i}">{f"<h2>{escape(s[chr(110) + chr(97) + chr(109) + chr(101)])}</h2>" if s["name"] else ""}<ul>{items}</ul></section>'
+    if not body:
+        body = '<p class="empty">La carta estará aquí muy pronto.</p>'
+    phone = _tel(f.get("phone"))
+    btns = ""
+    if phone:
+        btns += f'<a class="b" href="tel:{escape(phone)}">📞 Llamar</a>'
+    if f.get("address"):
+        btns += f'<a class="b" href="https://maps.google.com/?q={quote(str(f["address"]))}" target="_blank" rel="noopener">📍 Cómo llegar</a>'
+    ig = str(f.get("instagram") or "").strip().lstrip("@")
+    if ig:
+        url = ig if ig.startswith("http") else f"https://instagram.com/{quote(ig)}"
+        btns += f'<a class="b" href="{escape(url)}" target="_blank" rel="noopener">📸 Instagram</a>'
+    web = str(f.get("web") or "").strip()
+    if web:
+        url = web if re.match(r"^https?://", web) else "https://" + web
+        btns += f'<a class="b" href="{escape(url)}" target="_blank" rel="noopener">🌐 Web</a>'
+    info = ""
+    if f.get("hours"):
+        info += f'<section class="box"><h2>🕒 Horario</h2><p>{e("hours")}</p></section>'
+    if f.get("wifi_ssid"):
+        pw = e("wifi_pass")
+        info += (f'<section class="box"><h2>📶 WiFi</h2><p>Red: <b>{e("wifi_ssid")}</b>'
+                 f'{f"<br>Contraseña: <b class=pw>{pw}</b> <button type=button class=copy data-copy=" + chr(34) + pw + chr(34) + ">Copiar</button>" if pw else ""}</p></section>')
+    if f.get("address"):
+        info += f'<section class="box"><h2>📍 Dónde estamos</h2><p>{e("address")}</p></section>'
+    note = f'<p class="note">{e("notes")}</p>' if f.get("notes") else ""
+    mesa = f'<div class="mesa">🍽️ Estás en la <b>mesa {escape(table)}</b></div>' if table else ""
+    html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{name} · Carta</title><link rel="stylesheet" href="/static/menu.css?v=3"></head><body>
+<header>{logo_html}<h1>{name}</h1>{f'<p class="tag">{e("tagline")}</p>' if f.get("tagline") else ""}{mesa}
+{f'<div class="btns">{btns}</div>' if btns else ""}</header>
+{f'<nav>{nav}</nav>' if nav else ""}
+<main>{body}{note}{info}<p class="foot">Carta hecha con QRPanel</p></main>
+<script src="/static/js/place.js?v=3"></script>
+</body></html>"""
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
+
+def _link_bits(text: str) -> str:
+    """Un trozo de contacto: los teléfonos y emails se pueden pulsar."""
+    t = text.strip()
+    if re.fullmatch(r"[\w.+-]+@[\w-]+(\.[\w-]+)+", t):
+        return f'<a href="mailto:{escape(t)}">{escape(t)}</a>'
+    if re.fullmatch(r"\+?[\d ()-]{6,20}", t):
+        return f'<a href="tel:{escape(_tel(t))}">{escape(t)}</a>'
+    return escape(t)
+
+
+def _place_page(r, tag: str | None = None) -> HTMLResponse:
+    """Página de bienvenida de un hotel o de la recepción de una oficina."""
+    kind = r["kind"]
+    hotel = kind == "hotel"
+    f = json.loads(r["fields"] or "{}")
+    e = lambda k: escape(str(f.get(k) or "").strip())
+    name = e("name") or ("Bienvenido" if hotel else "Recepción")
+    logo = f.get("logo") or ""
+    logo_html = f'<img class="logo" src="{escape(logo)}" alt="">' if PHOTO_RE.match(logo) else ""
+    phone, wa = _tel(f.get("phone")), _tel(f.get("whatsapp"))
+    btns = ""
+    if phone:
+        btns += f'<a class="b" href="tel:{escape(phone)}">📞 {"Recepción" if hotel else "Llamar"}</a>'
+    if wa:
+        btns += f'<a class="b" href="https://wa.me/{escape(wa.lstrip("+"))}" target="_blank" rel="noopener">💬 WhatsApp</a>'
+    if f.get("address"):
+        btns += f'<a class="b" href="https://maps.google.com/?q={quote(str(f["address"]))}" target="_blank" rel="noopener">📍 Cómo llegar</a>'
+    web = str(f.get("web") or "").strip()
+    if web:
+        url = web if re.match(r"^https?://", web) else "https://" + web
+        btns += f'<a class="b" href="{escape(url)}" target="_blank" rel="noopener">🌐 Web</a>'
+    box = lambda title, html: f'<section class="box"><h2>{title}</h2>{html}</section>'
+    out = ""
+    if f.get("wifi_ssid"):
+        pw = e("wifi_pass")
+        out += box("📶 WiFi", f'<p>Red: <b>{e("wifi_ssid")}</b>' + (
+            f'<br>Contraseña: <b class="pw">{pw}</b> <button type="button" class="copy" data-copy="{pw}">Copiar</button>' if pw else "") + "</p>")
+    if hotel:
+        times = "".join(f'<div><span>{lab}</span><b>{e(k)}</b></div>' for k, lab in
+                        (("checkin", "Entrada"), ("checkout", "Salida"), ("breakfast", "Desayuno")) if f.get(k))
+        if times:
+            out += box("🕒 Horarios", f'<div class="kv">{times}</div>')
+        for i, sec in enumerate(_parse_menu(f.get("services") or "")):
+            items = "".join(f'<li><div class="it"><b>{escape(it["name"])}</b><i></i><span class="pr">{escape(it["price"])}</span></div>'
+                            + (f'<p>{escape(it["desc"])}</p>' if it["desc"] else "") + "</li>" for it in sec["items"])
+            out += f'<section><h2>{escape(sec["name"] or "Servicios")}</h2><ul>{items}</ul></section>'
+        if f.get("rules"):
+            out += box("📋 Normas de la casa", f'<p>{e("rules")}</p>')
+    else:
+        if f.get("how"):
+            out += box("🧭 Cómo llegar", f'<p>{e("how")}</p>')
+        if f.get("hours"):
+            out += box("🕒 Horario", f'<p>{e("hours")}</p>')
+        mode = f.get("checkin", "both")
+        mail = str(f.get("email") or "").strip()
+        can_wa = wa and mode in ("whatsapp", "both")
+        can_mail = re.fullmatch(r"[\w.+-]+@[\w-]+(\.[\w-]+)+", mail) and mode in ("email", "both")
+        if can_wa or can_mail:
+            out += box("👋 Avisa de que has llegado", f"""<form class="visit" data-wa="{escape(wa.lstrip('+')) if can_wa else ''}" data-mail="{escape(mail) if can_mail else ''}" data-place="{name}" data-tag="{escape(tag or '')}">
+<input name="who" maxlength="60" placeholder="Tu nombre" required autocomplete="name">
+<input name="org" maxlength="60" placeholder="Empresa (opcional)" autocomplete="organization">
+<input name="see" maxlength="60" placeholder="¿A quién vienes a ver?">
+<div class="row">{'<button type="submit" name="via" value="wa">💬 Avisar por WhatsApp</button>' if can_wa else ''}{'<button type="submit" name="via" value="mail">✉️ Avisar por email</button>' if can_mail else ''}</div>
+<p class="hint">Se abre tu WhatsApp o tu correo con el mensaje ya escrito: solo tienes que enviarlo.</p></form>""")
+        rows = ""
+        for line in str(f.get("contacts") or "").splitlines():
+            parts = [p for p in (x.strip() for x in line.split("|")) if p]
+            if parts:
+                rows += f'<li><div class="it"><b>{escape(parts[0])}</b></div>' + (
+                    f'<p>{" · ".join(_link_bits(p) for p in parts[1:])}</p>' if len(parts) > 1 else "") + "</li>"
+        if rows:
+            out += f'<section><h2>Contactos</h2><ul>{rows}</ul></section>'
+    if f.get("address"):
+        out += box("📍 Dirección", f'<p>{e("address")}</p>')
+    note = f'<p class="note">{e("notes")}</p>' if f.get("notes") else ""
+    where = ""
+    if tag:
+        where = f'<div class="mesa">🛏️ Estás en la <b>habitación {escape(tag)}</b></div>' if hotel else f'<div class="mesa">📍 Estás en: <b>{escape(tag)}</b></div>'
+    html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{name}</title><link rel="stylesheet" href="/static/menu.css?v=3"></head><body class="{kind}">
+<header>{logo_html}<h1>{name}</h1>{f'<p class="tag">{e("tagline")}</p>' if f.get("tagline") else ""}{where}
+{f'<div class="btns">{btns}</div>' if btns else ""}</header>
+<main>{out or '<p class="empty">Muy pronto tendrás aquí toda la información.</p>'}{note}<p class="foot">Hecho con QRPanel</p></main>
+<script src="/static/js/place.js?v=3"></script>
+</body></html>"""
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
+
+MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+DAYS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+OPS = {"venta": "Se vende", "alquiler": "Se alquila", "traspaso": "Se traspasa", "vendido": "Vendido"}
+
+
+def _euro(v) -> str:
+    v = str(v or "").strip()
+    return v + " €" if v and re.fullmatch(r"[\d.,]+", v) else v
+
+
+def _dt(v):
+    import datetime as _d
+    try:
+        return _d.datetime.strptime(str(v or "")[:16], "%Y-%m-%dT%H:%M")
+    except ValueError:
+        return None
+
+
+def _when(v) -> str:
+    d = _dt(v)
+    return f"{DAYS[d.weekday()]} {d.day} de {MONTHS[d.month - 1]} de {d.year}, {d:%H:%M}" if d else ""
+
+
+def _rows(text: str, euro: bool = False) -> str:
+    """Secciones «# Nombre» y líneas «Nombre | valor» como en la carta."""
+    out = ""
+    for sec in _parse_menu(text or ""):
+        items = "".join(f'<li><div class="it"><b>{escape(it["name"])}</b><i></i><span class="pr">{escape(_euro(it["price"]) if euro else it["price"])}</span></div>'
+                        + (f'<p>{escape(it["desc"])}</p>' if it["desc"] else "") + "</li>" for it in sec["items"])
+        out += (f'<section>{f"<h2>{escape(sec[chr(110) + chr(97) + chr(109) + chr(101)])}</h2>" if sec["name"] else ""}<ul>{items}</ul></section>')
+    return out
+
+
+def _card_page(r, tag: str | None = None) -> HTMLResponse:
+    """Ficha de producto, evento con programa o inmueble."""
+    kind = r["kind"]
+    f = json.loads(r["fields"] or "{}")
+    e = lambda k: escape(str(f.get(k) or "").strip())
+    name = e("name") or {"shop": "Producto", "eventpage": "Evento", "home": "Inmueble"}[kind]
+    photo = f.get("photo") or ""
+    hero = f'<img class="hero" src="{escape(photo)}" alt="">' if PHOTO_RE.match(photo) else ""
+    phone, wa = _tel(f.get("phone")), _tel(f.get("whatsapp"))
+    box = lambda title, html: f'<section class="box"><h2>{title}</h2>{html}</section>'
+    link = lambda u: u if re.match(r"^https?://", u) else "https://" + u
+    btns, top, out = "", "", ""
+    if kind == "shop":
+        pr, of = _euro(f.get("price")), _euro(f.get("offer"))
+        if of and pr:
+            top = f'<div class="price"><s>{escape(pr)}</s> <b>{escape(of)}</b></div>'
+        elif of or pr:
+            top = f'<div class="price"><b>{escape(of or pr)}</b></div>'
+        if f.get("buy"):
+            btns += f'<a class="b main" href="{escape(link(str(f["buy"]).strip()))}" target="_blank" rel="noopener">🛒 Comprar</a>'
+        ask = f"Hola, me interesa «{str(f.get('name') or '').strip()}»" + (f" (expositor {tag})" if tag else "") + ". ¿Me das más información?"
+        if wa:
+            btns += f'<a class="b" href="https://wa.me/{escape(wa.lstrip("+"))}?text={quote(ask)}" target="_blank" rel="noopener">💬 Preguntar</a>'
+        if phone:
+            btns += f'<a class="b" href="tel:{escape(phone)}">📞 Llamar</a>'
+        if f.get("desc"):
+            out += f'<p class="lead">{e("desc")}</p>'
+        out += _rows(f.get("specs") or "")
+        if f.get("hours"):
+            out += box("🕒 Horario de la tienda", f'<p>{e("hours")}</p>')
+        ig = str(f.get("instagram") or "").strip().lstrip("@")
+        if ig:
+            btns += f'<a class="b" href="{escape(ig if ig.startswith("http") else "https://instagram.com/" + quote(ig))}" target="_blank" rel="noopener">📸 Instagram</a>'
+    elif kind == "eventpage":
+        d = _dt(f.get("start"))
+        when = _when(f.get("start"))
+        end = _dt(f.get("end"))
+        if end and d and end.date() == d.date():
+            when += f" a {end:%H:%M}"
+        elif end:
+            when += f" — {_when(f.get('end'))}"
+        top = (f'<div class="when">📅 {escape(when)}</div>' if when else "") + (
+            f'<div class="count" data-start="{escape(str(f.get("start"))[:16])}"></div>' if d else "")
+        if f.get("tickets"):
+            btns += f'<a class="b main" href="{escape(link(str(f["tickets"]).strip()))}" target="_blank" rel="noopener">🎟️ Entradas</a>'
+        if d:
+            btns += f'<a class="b" href="/r/{escape(r["code"])}/evento.ics">🗓️ Añadir al calendario</a>'
+        if wa:
+            btns += f'<a class="b" href="https://wa.me/{escape(wa.lstrip("+"))}" target="_blank" rel="noopener">💬 WhatsApp</a>'
+        if f.get("price"):
+            out += box("💶 Precio", f'<p>{e("price")}</p>')
+        prog = _rows(f.get("program") or "")
+        if prog:
+            out += '<h2 class="sec">Programa</h2>' + prog
+        if f.get("venue") or f.get("address"):
+            out += box("📍 Dónde", f'<p>{"<b>" + e("venue") + "</b><br>" if f.get("venue") else ""}{e("address")}</p>')
+        if f.get("dress"):
+            out += box("ℹ️ A tener en cuenta", f'<p>{e("dress")}</p>')
+        if f.get("wifi_ssid"):
+            pw = e("wifi_pass")
+            out += box("📶 WiFi", f'<p>Red: <b>{e("wifi_ssid")}</b>' + (
+                f'<br>Contraseña: <b class="pw">{pw}</b> <button type="button" class="copy" data-copy="{pw}">Copiar</button>' if pw else "") + "</p>")
+    else:  # inmueble
+        op = f.get("op") or "venta"
+        top = f'<div class="badge {escape(op)}">{escape(OPS.get(op, ""))}</div>' + (
+            f'<div class="price"><b>{escape(_euro(f.get("price")))}</b></div>' if f.get("price") and op != "vendido" else "")
+        facts = "".join(f'<div><b{" class=long" if len(str(f.get(k))) > 6 else ""}>{e(k)}</b><span>{lab}</span></div>' for k, lab in
+                        (("m2", "m²"), ("rooms", "habitaciones"), ("baths", "baños"), ("floor", "planta")) if f.get(k))
+        if facts:
+            out += f'<div class="facts">{facts}</div>'
+        if f.get("desc"):
+            out += f'<p class="lead">{e("desc")}</p>'
+        feats = [x.strip(" -•*") for x in str(f.get("features") or "").splitlines() if x.strip(" -•*")]
+        if feats:
+            out += '<section><h2>Características</h2><ul class="checks">' + "".join(f"<li>✓ {escape(x)}</li>" for x in feats) + "</ul></section>"
+        ref = str(f.get("ref") or "").strip()
+        ask = f"Hola, me interesa el inmueble «{str(f.get('name') or '').strip()}»" + (f" (ref. {ref})" if ref else "") + ". ¿Podemos concertar una visita?"
+        if op != "vendido":
+            if wa:
+                btns += f'<a class="b main" href="https://wa.me/{escape(wa.lstrip("+"))}?text={quote(ask)}" target="_blank" rel="noopener">💬 Pedir visita</a>'
+            if phone:
+                btns += f'<a class="b" href="tel:{escape(phone)}">📞 Llamar</a>'
+            mail = str(f.get("email") or "").strip()
+            if re.fullmatch(r"[\w.+-]+@[\w-]+(\.[\w-]+)+", mail):
+                btns += f'<a class="b" href="mailto:{escape(mail)}?subject={quote("Visita " + (ref or str(f.get("name") or "")))}&body={quote(ask)}">✉️ Email</a>'
+        if f.get("tour"):
+            btns += f'<a class="b" href="{escape(link(str(f["tour"]).strip()))}" target="_blank" rel="noopener">📷 Más fotos</a>'
+        if f.get("agent") or ref:
+            out += box("🏢 Contacto", f'<p>{e("agent")}{"<br>" if f.get("agent") and ref else ""}{"Referencia: <b>" + escape(ref) + "</b>" if ref else ""}</p>')
+    if f.get("address") and kind != "eventpage":
+        btns += f'<a class="b" href="https://maps.google.com/?q={quote(str(f["address"]))}" target="_blank" rel="noopener">📍 Cómo llegar</a>'
+        out += box("📍 Dirección" if kind == "shop" else "📍 Zona", f'<p>{e("address")}</p>')
+    elif kind == "eventpage" and (f.get("address") or f.get("venue")):
+        btns += f'<a class="b" href="https://maps.google.com/?q={quote(str(f.get("address") or f.get("venue")))}" target="_blank" rel="noopener">📍 Cómo llegar</a>'
+    web = str(f.get("web") or "").strip()
+    if web:
+        btns += f'<a class="b" href="{escape(link(web))}" target="_blank" rel="noopener">🌐 Web</a>'
+    sub = e("brand") if kind == "shop" else e("tagline") if kind == "eventpage" else ""
+    note = f'<p class="note">{e("notes")}</p>' if f.get("notes") else ""
+    html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{name}</title><link rel="stylesheet" href="/static/menu.css?v=3"></head><body class="{kind}">
+<header class="card-h">{hero}<h1>{name}</h1>{f'<p class="tag">{sub}</p>' if sub else ""}{top}
+{f'<div class="btns">{btns}</div>' if btns else ""}</header>
+<main>{out}{note}<p class="foot">Hecho con QRPanel</p></main>
+<script src="/static/js/place.js?v=3"></script>
+</body></html>"""
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/r/{code}/evento.ics")
+def go_ics(code: str):
+    r, page = _open(code)
+    if page or r["pin"] or r["kind"] != "eventpage":
+        raise HTTPException(404, "No hay evento")
+    f = json.loads(r["fields"] or "{}")
+    d, end = _dt(f.get("start")), _dt(f.get("end"))
+    if not d:
+        raise HTTPException(404, "El evento no tiene fecha")
+    import datetime as _d
+    end = end or d + _d.timedelta(hours=2)
+    esc_ = lambda v: str(v or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+    loc = ", ".join(str(x).strip() for x in (f.get("venue"), f.get("address")) if x)
+    ics = "\r\n".join(x for x in ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//QRPanel//ES", "BEGIN:VEVENT",
+                                   f"UID:{r['code']}@qrpanel", f"DTSTAMP:{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}",
+                                   f"DTSTART:{d:%Y%m%dT%H%M00}", f"DTEND:{end:%Y%m%dT%H%M00}", f"SUMMARY:{esc_(f.get('name'))}",
+                                   loc and f"LOCATION:{esc_(loc)}", f.get("tagline") and f"DESCRIPTION:{esc_(f.get('tagline'))}",
+                                   "END:VEVENT", "END:VCALENDAR"] if x) + "\r\n"
+    return Response(ics, media_type="text/calendar; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{re.sub(r"[^A-Za-z0-9_-]", "", r["code"])}.ics"'})
+
+
 def _scan(r, request: Request, status: int = 302):
     now = time.time()
     ua = request.headers.get("user-agent", "")[:400]
     device, os_, br = _ua_info(ua)
     day = time.strftime("%Y-%m-%d", time.localtime(now))
     visitor = hashlib.sha256(f"{client_ip(request)}|{ua}|{day}".encode()).hexdigest()[:16]
-    db.run("INSERT INTO scans(qr_id,at,day,device,os,browser,visitor) VALUES(?,?,?,?,?,?,?)",
-           r["id"], now, day, device, os_, br, visitor)
+    tag = _table(request)
+    db.run("INSERT INTO scans(qr_id,at,day,device,os,browser,visitor,tag) VALUES(?,?,?,?,?,?,?,?)",
+           r["id"], now, day, device, os_, br, visitor, tag)
     db.run("UPDATE qrs SET scans=scans+1, last_scan=? WHERE id=?", now, r["id"])
     if r["kind"] == "pet":
         return _pet_page(r)
+    if r["kind"] == "menu":
+        return _menu_page(r, tag)
+    if r["kind"] in ("hotel", "office"):
+        return _place_page(r, tag)
+    if r["kind"] in ("shop", "eventpage", "home"):
+        return _card_page(r, tag)
     return RedirectResponse(r["target"], status_code=status, headers={"Cache-Control": "no-store"})
 
 

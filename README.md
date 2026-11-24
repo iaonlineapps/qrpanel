@@ -6,16 +6,33 @@ Tu propio generador de códigos QR, en tu casa o en tu servidor. Haces QR bonito
 degradados, marcos y texto), los guardas en tu biblioteca y, si quieres, los haces
 **dinámicos**: cambias a dónde llevan sin reimprimirlos y ves cuántas veces los escanean.
 Gratis, sin cuentas en webs de terceros y sin que tus QR dejen de funcionar cuando acaba
-una "prueba gratuita". En español, con modo claro y oscuro, y se instala como app.
+una "prueba gratuita". En español y en inglés, con modo claro y oscuro, y se instala como app.
 
 Funciona en una Raspberry Pi o en cualquier equipo con Docker. Gasta muy poco: unos 55 MB
 de memoria.
 
+> **Idiomas / Languages:** español e inglés. La web usa el idioma de tu navegador y se cambia en
+> **Ajustes → Idioma / Language** o en la pantalla de entrada. Las páginas públicas (carta, ficha
+> de la mascota, compartir…) salen en el idioma del móvil de quien escanea. La app de Android
+> sigue a la web.
+> Spanish and English. The web follows your browser language and can be changed in
+> **Settings → Idioma / Language** or on the sign-in screen. Public pages (menu, pet profile,
+> share…) follow the language of the phone that scans them. The Android app follows the web.
+
 **Qué incluye:**
 
-- **11 tipos de QR:** enlace, texto, WiFi, contacto (vCard), email, WhatsApp, llamada, SMS,
-  ubicación, evento de calendario y **mascota**: una ficha con foto y tus datos por si se
-  pierde, con botones para llamarte, mandarte un WhatsApp o enviarte dónde está.
+- **18 tipos de QR:** enlace, texto, WiFi, contacto (vCard), email, WhatsApp, llamada, SMS,
+  ubicación, fecha al calendario y **mascota**: una ficha con foto y tus datos por si se
+  pierde, con botones para llamarte, mandarte un WhatsApp o enviarte dónde está (y cartel
+  «Se busca» en A4 o para redes).
+- **Para negocios**, con su página en el móvil que cambias sin reimprimir:
+  **restaurante** (carta con alérgenos y QR por mesa), **reseñas** (directo a Google o
+  TripAdvisor, con **expositor de mesa 3D** multicolor y aristas redondeadas), **hotel**
+  (WiFi, horarios, servicios y QR por habitación), **oficina / recepción** (contactos y aviso de
+  llegada), **tienda / producto**, **evento con programa** (cuenta atrás y «Añadir al
+  calendario») e **inmobiliaria** (ficha del piso y «Pedir visita»).
+- **Encuadra las fotos** al subirlas (mover y zoom), para que la mascota o el producto no
+  salgan cortados.
 - **Diseño a tu gusto:** 10 formas de módulo (cuadrado, redondeado, líquido, puntos, píxel,
   elegante, rombo, estrella, barras y líneas), 6 marcos y 7 centros para los "ojos", colores
   sólidos o con degradado lineal o radial, fondo de color, degradado o transparente, y
@@ -69,12 +86,18 @@ Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 
 ![Crear un QR](docs/capturas/crear.png)
 
+![Páginas para negocios: carta, hotel, oficina, tienda, evento e inmobiliaria](docs/capturas/negocios.png)
+
 | | |
 |---|---|
 | ![Imprimir en 3D](docs/capturas/3d.png) | ![QR para mascotas](docs/capturas/mascota.png) |
 | **Imprimir en 3D**, con vista previa | **QR para tu mascota** |
 | ![Estadísticas de un QR dinámico](docs/capturas/estadisticas-qr.png) | ![Caducidad y PIN](docs/capturas/dinamico.png) |
 | **Estadísticas** de cada QR dinámico | **Caducidad y PIN** |
+| ![Expositor de reseñas en 3D](docs/capturas/resenas-expositor.png) | ![QR por mesa](docs/capturas/qr-por-mesa.png) |
+| **Expositor de reseñas** para imprimir en 3D | **QR por mesa** para la carta |
+| ![Cartel «Se busca»](docs/capturas/cartel-mascota.png) | |
+| **Cartel «Se busca»** si se pierde tu mascota | |
 
 ![En el móvil y en la app de Android](docs/capturas/movil.png)
 
@@ -97,7 +120,7 @@ Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 </details>
 
 **Material gráfico:** portadas para redes, imagen para GitHub, icono y avatar en
-[`docs/promo/`](docs/promo/) (lista completa en la [guía](docs/GUIA.md#16-material-gráfico-portadas-icono-y-avatar)).
+[`docs/promo/`](docs/promo/) (lista completa en la [guía](docs/GUIA.md#17-material-gráfico-portadas-icono-y-avatar)).
 
 ---
 
@@ -222,7 +245,7 @@ Es la misma web de QRPanel dentro de una app, así que siempre está al día con
    Dale permiso y toca **Instalar**. Si aparece *Play Protect*, toca **Más detalles →
    Instalar de todas formas**: sale porque la app no viene de Google Play.
 3. Abre **QRPanel**. Te pide dos direcciones:
-   - **En casa (wifi):** la IP de tu servidor, por ejemplo `192.168.1.50:8091`.
+   - **En casa (wifi):** la IP de tu servidor, por ejemplo `192.168.1.x:8091`.
    - **Fuera de casa:** tu dominio, por ejemplo `https://qr.midominio.com` (mira
      [Acceso desde fuera de casa](#8-acceso-desde-fuera-de-casa)). Si no tienes, déjala vacía.
 4. Entra con tu **usuario y contraseña**, los mismos de la web.
@@ -252,8 +275,8 @@ QRPanel tiene **dos números de versión**, cada uno con su propio ritmo:
 
 | Qué | Dónde está el número | Dónde lo ves | Novedades |
 |---|---|---|---|
-| **Web (servidor)** | [`app/VERSION`](app/VERSION) | abajo de cada página y en **Ajustes → Acerca de** («Web 1.0.2») | [`CHANGELOG.md`](CHANGELOG.md) |
-| **App Android** | `versionName` en [`android/src/main/AndroidManifest.xml`](android/src/main/AndroidManifest.xml) | abajo de cada página («App 1.0.0», solo dentro de la app) y en el menú *Atrás* | [`novedades.md`](android/src/main/res/raw/novedades.md) |
+| **Web (servidor)** | [`app/VERSION`](app/VERSION) | abajo de cada página y en **Ajustes → Acerca de** («Web 1.0.14») | [`CHANGELOG.md`](CHANGELOG.md) |
+| **App Android** | `versionName` en [`android/src/main/AndroidManifest.xml`](android/src/main/AndroidManifest.xml) | abajo de cada página («App 1.0.1», solo dentro de la app) y en el menú *Atrás* | [`novedades.md`](android/src/main/res/raw/novedades.md) |
 
 **Cómo se numeran:** siempre de poco en poco, subiendo solo el último número en cada
 actualización: la web 1.0.0 → 1.0.1 → 1.0.2 → 1.0.3… y la app igual, 1.0.0 → 1.0.1 → 1.0.2…
@@ -332,7 +355,7 @@ Ejemplo con Caddy:
 
 ```
 qr.midominio.com {
-    reverse_proxy 192.168.1.50:8091
+    reverse_proxy IP-DE-TU-SERVIDOR:8091
 }
 ```
 
