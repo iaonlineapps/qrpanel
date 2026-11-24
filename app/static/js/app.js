@@ -282,6 +282,7 @@ function viewCreate(v, arg) {
           <button class="btn sm ghost" id="copy">${icon("copy", "sm")}Copiar imagen</button>
           <button class="btn sm ghost" id="share">${icon("share", "sm")}Compartir</button>
           <button class="btn sm ghost" id="copytxt">${icon("text", "sm")}Copiar texto</button>
+          ${E.id && S.store.mode === "server" ? `<button class="btn sm ghost" id="shlink">${icon("link", "sm")}Enlace</button>` : ""}
         </div>
       </div>
     </aside>
@@ -651,6 +652,7 @@ function viewCreate(v, arg) {
       else { download(blob, file.name); toast("Este navegador no comparte archivos: lo he descargado"); }
     } catch (err) { if (err.name !== "AbortError") toast("No se pudo compartir", "bad"); }
   };
+  $("#shlink", v)?.addEventListener("click", () => { const q = S.qrs.find((x) => x.id === E.id); if (q) shareDlg(q); });
   $("#new", v)?.addEventListener("click", () => { E = null; localStorage.removeItem("qp-draft"); location.hash = "#/crear"; });
   $("#reset", v)?.addEventListener("click", () => { localStorage.removeItem("qp-draft"); E = null; route(); });
 
@@ -724,6 +726,7 @@ function viewLibrary(v) {
         <div class="meta"><span class="chip">${esc(TYPES[q.kind]?.name || q.kind)}</span>
           ${q.dynamic ? `<span class="chip ${q.active ? "dyn" : "off"}">${q.active ? icon("bolt", "sm") + fmtN(q.scans) + " lecturas" : "En pausa"}</span>` : ""}
           ${q.folder ? `<span class="chip">${icon("folder", "sm")}${esc(q.folder)}</span>` : ""}
+          ${q.share_url ? `<span class="chip" title="Compartido con enlace">${icon("share", "sm")}</span>` : ""}
           <button class="btn ghost icon more" data-more title="Más">${icon("dots")}</button></div></div></article>`).join("");
     $$(".pv", grid).forEach((el) => io.observe(el));
     selbar();
@@ -777,8 +780,9 @@ function qrMenu(anchor, q, redraw) {
     { icon: "download", label: "Descargar SVG", run: async () => download(await exportQR(q, "svg"), `${slug(q.name)}.svg`) },
     { icon: "download", label: "Descargar JPG", run: async () => download(await exportQR(q, "jpg", 1024), `${slug(q.name)}.jpg`) },
     { icon: "download", label: "Descargar PDF", run: async () => download(await exportQR(q, "pdf", 2048), `${slug(q.name)}.pdf`) },
+    ...(S.store.mode === "server" ? [{ icon: "share", label: q.share_url ? "Enlace para compartir" : "Compartir con un enlace", run: () => shareDlg(q, redraw) }] : []),
     { icon: "copy", label: "Duplicar", run: async () => {
-      const c = structuredClone(q); delete c.id; c.name = q.name + " (copia)"; c.code = null; c.dynamic = q.dynamic;
+      const c = structuredClone(q); delete c.id; delete c.share; delete c.share_url; c.name = q.name + " (copia)"; c.code = null; c.dynamic = q.dynamic;
       const n = await S.store.create(c); S.qrs.unshift(n); redraw(); toast("Duplicado");
     } },
     { icon: "edit", label: "Renombrar", run: async () => {
@@ -799,6 +803,25 @@ function qrMenu(anchor, q, redraw) {
     await S.store.remove(q.id); S.qrs = S.qrs.filter((x) => x.id !== q.id); redraw(); toast("Eliminado");
   } });
   menu(anchor, items);
+}
+
+async function shareDlg(q, redraw) {
+  try { if (!q.share_url) { Object.assign(q, await S.store.share(q.id)); redraw?.(); } }
+  catch (e) { return toast(e.message, "bad"); }
+  const r = await dialog({
+    title: "Compartir «" + q.name + "»",
+    body: `<div class="steps" style="gap:12px"><div class="small muted">Cualquiera con este enlace podrá ver el QR y descargarlo en PNG, SVG o PDF, sin necesitar cuenta.</div>
+      <div class="row"><input class="input grow" id="shurl" value="${esc(q.share_url)}" readonly><button class="btn" id="shcopy">${icon("copy", "sm")}Copiar</button></div>
+      <div class="row"><a class="btn sm ghost" href="${esc(q.share_url)}" target="_blank" rel="noopener">${icon("eye", "sm")}Ver la página</a>
+      ${navigator.share ? `<button class="btn sm ghost" id="shnat">${icon("share", "sm")}Enviar…</button>` : ""}</div></div>`,
+    buttons: [["Dejar de compartir", "off"], ["Listo", null, "primary"]],
+    onOpen: (w) => {
+      w.querySelector("#shcopy").onclick = async () => { await navigator.clipboard.writeText(q.share_url); toast("Enlace copiado"); };
+      w.querySelector("#shurl").onclick = (e) => e.target.select();
+      w.querySelector("#shnat")?.addEventListener("click", () => navigator.share({ title: q.name, url: q.share_url }).catch(() => {}));
+    },
+  });
+  if (r === "off") { Object.assign(q, await S.store.unshare(q.id)); redraw?.(); toast("Ya no se comparte. El enlace ha dejado de funcionar"); }
 }
 
 async function zipQRs(items, fmt, size, onProgress) {

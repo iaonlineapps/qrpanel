@@ -34,6 +34,8 @@ export const ServerStore = {
   update: (id, q) => api("PUT", `/api/qrs/${id}`, q),
   patch: (id, p) => api("PATCH", `/api/qrs/${id}`, p),
   remove: (id) => api("DELETE", `/api/qrs/${id}`),
+  share: (id) => api("POST", `/api/qrs/${id}/share`),
+  unshare: (id) => api("DELETE", `/api/qrs/${id}/share`),
   qrStats: (id, days = 30) => api("GET", `/api/qrs/${id}/stats?days=${days}`),
   stats: () => api("GET", "/api/stats"),
   logos: () => api("GET", "/api/logos"),

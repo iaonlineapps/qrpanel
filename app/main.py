@@ -199,6 +199,7 @@ def _row(r, base: str) -> dict:
     d["favorite"], d["dynamic"], d["active"] = bool(d["favorite"]), bool(d["dynamic"]), bool(d["active"])
     d.pop("user_id", None)
     d["short_url"] = f"{base}/r/{d['code']}" if d["dynamic"] and d["code"] else None
+    d["share_url"] = f"{base}/s/{d['share']}" if d.get("share") else None
     return d
 
 
@@ -294,6 +295,41 @@ def delete_qr(qid: int, u=Depends(current_user)):
     db.run("DELETE FROM scans WHERE qr_id=?", qid)
     db.run("DELETE FROM qrs WHERE id=?", qid)
     return {"ok": True}
+
+
+# --- compartir con un enlace publico -----------------------------------------------
+@app.post("/api/qrs/{qid}/share")
+def share_on(qid: int, request: Request, u=Depends(current_user)):
+    r = _own(qid, u)
+    if not r["share"]:
+        db.run("UPDATE qrs SET share=? WHERE id=?", secrets.token_urlsafe(12), qid)
+    return _row(db.q1("SELECT * FROM qrs WHERE id=?", qid), public_base(request))
+
+
+@app.delete("/api/qrs/{qid}/share")
+def share_off(qid: int, request: Request, u=Depends(current_user)):
+    _own(qid, u)
+    db.run("UPDATE qrs SET share=NULL WHERE id=?", qid)
+    return _row(db.q1("SELECT * FROM qrs WHERE id=?", qid), public_base(request))
+
+
+@app.get("/api/share/{token}")
+def share_get(token: str):
+    r = db.q1("SELECT q.*, u.username FROM qrs q JOIN users u ON u.id=q.user_id WHERE q.share=?", token)
+    if not r or len(token) < 10:
+        raise HTTPException(404, "Este enlace ya no existe")
+    design = json.loads(r["design"] or "{}")
+    logo = design.get("logo") or {}
+    if logo.get("id") is not None:  # el logo va dentro para que se vea igual
+        lg = db.q1("SELECT data FROM logos WHERE id=? AND user_id=?", logo["id"], r["user_id"])
+        logo["src"], logo["id"] = (lg["data"] if lg else None), None
+    return {"name": r["name"], "kind": r["kind"], "content": r["content"], "design": design,
+            "owner": r["username"], "dynamic": bool(r["dynamic"]), "updated": r["updated"]}
+
+
+@app.get("/s/{token}")
+def share_page(token: str):
+    return FileResponse(STATIC / "share.html", headers={"Cache-Control": "no-cache"})
 
 
 def _days(n: int) -> list[str]:

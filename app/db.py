@@ -105,6 +105,10 @@ def set_setting(key: str, value: str):
 
 def init():
     conn().executescript(SCHEMA)
+    cols = {r["name"] for r in q("PRAGMA table_info(qrs)")}
+    if "share" not in cols:  # enlace publico para compartir un QR
+        run("ALTER TABLE qrs ADD COLUMN share TEXT")
+        run("CREATE UNIQUE INDEX IF NOT EXISTS qrs_share ON qrs(share)")
     run("DELETE FROM sessions WHERE expires<?", time.time())
     run("DELETE FROM scans WHERE at<?", time.time() - 730 * 86400)  # se guardan dos anos
     if ADMIN_USER and ADMIN_PASSWORD and not q1("SELECT id FROM users WHERE username=?", ADMIN_USER):

@@ -41,6 +41,8 @@ de memoria.
   un ZIP o guardados en la biblioteca.
 - **Escáner:** lee QR con la cámara o desde una foto o captura, reconoce WiFi, contactos,
   eventos… y con un botón lo vuelve a crear con tu diseño.
+- **Compartir con un enlace:** cada QR puede tener su página pública (`/s/…`) donde
+  cualquiera lo ve y lo descarga en PNG, SVG, JPG o PDF sin cuenta. La quitas cuando quieras.
 - **Usuarios:** el primero que se registra es el administrador; los demás piden cuenta y
   el administrador los aprueba. Cada uno ve solo sus QR.
 - **Copia de seguridad:** exporta e importa todo (QR, logos y plantillas) en un archivo.
@@ -65,8 +67,10 @@ Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 | **Colores y degradados** | **Estadísticas** de todos tus QR |
 | ![Escáner](docs/capturas/escanear.png) | ![Por lotes](docs/capturas/lotes.png) |
 | **Escáner** con cámara o imagen | **Por lotes**: muchos QR de golpe |
-| <img src="docs/capturas/movil.png" alt="En el móvil"> | ![Entrar](docs/capturas/entrar.png) |
-| **En el móvil** | **Pantalla de entrada** |
+| <img src="docs/capturas/movil.png" alt="En el móvil"> | <img src="docs/capturas/compartido.png" width="300" alt="Página para compartir"> |
+| **En el móvil** | **Página pública** para compartir un QR |
+| ![Entrar](docs/capturas/entrar.png) | |
+| **Pantalla de entrada** | |
 
 </details>
 
