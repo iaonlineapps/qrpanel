@@ -88,3 +88,12 @@ echo
 echo "$APP desinstalado."
 echo "Si usabas un proxy (Pangolin, Nginx Proxy Manager, Cloudflare Tunnel), quita también allí"
 echo "el recurso de $APP. La app de Android se quita como cualquier otra, desde el móvil."
+echo
+echo "----------------------------------------------"
+echo "  ¡Gracias por haber usado $APP!"
+echo "  Esperamos que te haya gustado."
+echo
+echo "  Si te faltó algo o tienes una idea, cuéntanoslo en:"
+echo "  https://github.com/pctecnikk/qrpanel/issues"
+echo "  Y si algún día quieres volver, aquí estará: https://github.com/pctecnikk/qrpanel"
+echo "----------------------------------------------"

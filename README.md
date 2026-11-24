@@ -300,6 +300,7 @@ bash uninstall.sh
 4. Pregunta si borrar también los **datos** (la carpeta `DATA_DIR`: QR, logos, usuarios y
    estadísticas). Hay que escribir `BORRAR` para confirmarlo; si dices que no, se conservan.
 5. Pregunta si borrar la **carpeta del programa**.
+6. Se despide con un mensaje de agradecimiento. 🙂
 
 Después quita el recurso de QRPanel en tu proxy si lo tenías. La app de Android se
 desinstala como cualquier otra, desde el móvil.
