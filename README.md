@@ -82,6 +82,80 @@ de memoria.
 
 Hecho con Python (FastAPI + SQLite) y JavaScript sin frameworks.
 
+<details>
+<summary><b>🇬🇧 English</b></summary>
+
+### QRPanel in English
+
+Your own QR code generator, at home or on your server. Make good-looking QR codes (logo,
+gradients, frames and text), keep them in your library and, if you like, make them
+**dynamic**: change where they lead without reprinting them and see how many times they are
+scanned. Free, with no third-party accounts and no QR codes that stop working when a "free
+trial" ends. Light and dark mode, installable as an app, about 55 MB of RAM.
+
+**Languages:** Spanish and English. The web opens in your browser's language and you can change
+it in **Settings → Idioma / Language** or on the sign-in screen. Public pages (restaurant menu,
+pet profile, share page, PIN page…) follow the language of the phone that scans the QR; add
+`?lang=en` or `?lang=es` to a link to force one. Posters, table cards and the 3D stand use the
+language you picked. The Android app follows the web.
+
+**What's included:** 18 QR types (link, text, WiFi, contact, email, WhatsApp, call, SMS,
+location, calendar date, **pet** profile with a "Lost" poster) · business pages you can change
+without reprinting: **restaurant** menu with allergens and one QR per table, **reviews** with a
+3D-printable table stand, **hotel**, **office / reception**, **shop / product**, **event**
+with programme and **real estate** · 10 module shapes, eye frames and centres, solid or
+gradient colours, logos and animals in the centre, frames with text, 12 templates and
+"Surprise me" · real scan check with a 0–100 score · PNG, SVG, JPG, WebP and PDF downloads ·
+dynamic QR codes with short code, pause, expiry (date or number of scans) and PIN · stats per
+day, hour, device and system · library with folders and favourites · batch creation · scanner
+with camera or image · 3D printing in two-colour 3MF or STL · public share links · your brand
+and several users approved by the admin · backup export and import · Android app and PWA.
+
+**Install:**
+
+```bash
+git clone https://github.com/pctecnikk/qrpanel.git
+cd qrpanel
+./install.sh       # the first time it only creates the .env file
+nano .env          # set DATA_DIR and, if you have a domain, PUBLIC_URL
+./install.sh       # now it installs and starts
+```
+
+Open **http://YOUR-SERVER-IP:8091** and create your account. **The first user is the
+administrator**; later sign-ups wait until the admin approves them in **Settings → Users**.
+
+**Main `.env` settings:** `DATA_DIR` (where everything is stored), `PORT` (default 8091), `TZ`,
+`PUID`/`PGID`, `PUBLIC_URL` (the public address that goes inside dynamic QR codes: set it
+**before printing them**), `ADMIN_USER`/`ADMIN_PASSWORD`, `ALLOW_REGISTER` (`0` = only the
+admin creates accounts).
+
+**Update:** one line over SSH, from any folder:
+`curl -fsSL https://raw.githubusercontent.com/pctecnikk/qrpanel/main/update.sh | bash`.
+Your data, `.env` and `docker-compose.yaml` are kept.
+
+**Ready-made image** (no build): `ghcr.io/pctecnikk/qrpanel:latest`, for PC (amd64) and
+Raspberry Pi (arm64 and arm/v7).
+
+**Android app:** download **QRPanel.apk** from
+[Releases](https://github.com/pctecnikk/qrpanel/releases) (Android 7 or newer). The first time
+it asks for your server address.
+
+**Uninstall:** `cd qrpanel && bash uninstall.sh`. It asks before deleting anything, offers a
+backup, removes the Docker container and image, and asks whether to delete your data too (you
+must type `BORRAR` to confirm). The install, update and uninstall scripts speak Spanish.
+
+**Adding a language:** the web texts are in `app/static/js/i18n-en.json` (the keys are the
+Spanish texts) and the public pages in `app/i18n.py`.
+
+**Screenshots:**
+
+| | |
+|---|---|
+| ![Create a QR](docs/capturas/crear-en.png) | <img src="docs/capturas/carta-movil-en.png" width="260" alt="Restaurant menu on the phone"> |
+| **Create a QR** with live preview and scan check | **Restaurant menu** opened from the QR |
+
+</details>
+
 > 📖 **[Guía paso a paso con capturas](docs/GUIA.md)**: todo lo que se puede hacer, pantalla a pantalla.
 
 ![Crear un QR](docs/capturas/crear.png)
