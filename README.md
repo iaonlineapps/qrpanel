@@ -43,6 +43,8 @@ de memoria.
   eventos… y con un botón lo vuelve a crear con tu diseño.
 - **Compartir con un enlace:** cada QR puede tener su página pública (`/s/…`) donde
   cualquiera lo ve y lo descarga en PNG, SVG, JPG o PDF sin cuenta. La quitas cuando quieras.
+- **Tu marca:** el administrador pone el nombre y el logo de su negocio o su familia, y se
+  ven en la cabecera, en la pantalla de entrada y en las páginas de QR compartidos.
 - **Usuarios:** el primero que se registra es el administrador; los demás piden cuenta y
   el administrador los aprueba. Cada uno ve solo sus QR.
 - **Copia de seguridad:** exporta e importa todo (QR, logos y plantillas) en un archivo.
@@ -207,7 +209,26 @@ qr.midominio.com {
   visitantes únicos. Se borran solas a los dos años.
 - La web lleva una política de seguridad estricta (CSP) y no carga nada de fuera.
 
-## 8. Licencia
+## 8. Aviso legal y privacidad (si lo abres a otras personas)
+
+Si solo lo usas tú o tu familia, no tienes que hacer nada. Si dejas que otras personas
+creen cuentas o publicas QR dinámicos para el público, ten en cuenta que **quien instala
+QRPanel es el responsable** de lo que se hace con él:
+
+- **Qué datos guarda:** de cada usuario, su nombre de usuario y la contraseña cifrada. De
+  cada lectura de un QR dinámico: la fecha y hora, el tipo de dispositivo, el sistema y el
+  navegador, y un identificador anónimo que cambia cada día (sale de mezclar la IP y el
+  navegador, y la IP no se guarda). No usa cookies de seguimiento ni manda nada a terceros.
+- **Para el RGPD**, como dueño de la instalación eres el responsable del tratamiento.
+  Si es para un negocio, añade en tu web una nota de privacidad que explique que los QR
+  dinámicos cuentan lecturas anónimas.
+- **Abusos:** cualquiera con cuenta puede crear QR que lleven a cualquier web. Por eso las
+  cuentas nuevas necesitan tu aprobación (o pon `ALLOW_REGISTER=0`). Si alguien lo usa para
+  algo ilegal, bloquea su cuenta en **Ajustes → Usuarios**.
+- **Marcas:** QRPanel no incluye logos de otras empresas. Los iconos rápidos son dibujos
+  genéricos propios. Si un usuario sube el logo de otra marca, la responsabilidad es suya.
+
+## 9. Licencia
 
 QRPanel se publica con la licencia [PolyForm Noncommercial 1.0.0](LICENSE.md). En resumen
 (el texto que vale es el de la licencia):
@@ -221,9 +242,11 @@ QRPanel se publica con la licencia [PolyForm Noncommercial 1.0.0](LICENSE.md). E
 
 Si quieres usarlo con fines comerciales, escribe al autor por GitHub.
 
-Incluye dos bibliotecas de terceros con sus propias licencias: *qrcode-generator*
-(Kazuhiko Arase, MIT) y *jsQR* (Cosmo Wolfe, Apache 2.0). Mira
-[`app/static/vendor/LICENSES.txt`](app/static/vendor/LICENSES.txt).
+Incluye dos bibliotecas de terceros, sin cambios y con sus propias licencias:
+*qrcode-generator* (Kazuhiko Arase, MIT) y *jsQR* (Cosmo Wolfe, Apache 2.0). Sus textos
+completos están en [`app/static/vendor/`](app/static/vendor/LICENSES.txt). Todo lo demás
+(código, diseño, iconos y plantillas) es original y no se ha copiado de ningún otro
+generador. No incluye fuentes tipográficas: usa las del sistema.
 "QR Code" es una marca registrada de DENSO WAVE INCORPORATED.
 
 Copyright (c) 2026 [pctecnikk](https://github.com/pctecnikk)

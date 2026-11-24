@@ -79,11 +79,15 @@ class Creds(BaseModel):
     password: str = Field(max_length=256)
 
 
+def brand() -> dict:
+    return {"name": db.setting("brand_name") or "QRPanel", "logo": db.setting("brand_logo") or None}
+
+
 @app.get("/api/info")
 def info():
     has_users = db.q1("SELECT COUNT(*) n FROM users")["n"] > 0
     return {"app": "qrpanel", "version": VERSION, "has_users": has_users,
-            "allow_register": ALLOW_REGISTER or not has_users}
+            "allow_register": ALLOW_REGISTER or not has_users, "brand": brand()}
 
 
 @app.post("/api/register")
@@ -164,7 +168,7 @@ def me(request: Request, u=Depends(current_user)):
     pending = db.q1("SELECT COUNT(*) n FROM users WHERE status='pending'")["n"] if u["is_admin"] else 0
     return {"username": u["username"], "is_admin": bool(u["is_admin"]), "pending": pending,
             "version": VERSION, "public_url": public_base(request),
-            "public_url_custom": db.setting("public_url") or PUBLIC_URL}
+            "public_url_custom": db.setting("public_url") or PUBLIC_URL, "brand": brand()}
 
 
 # --- QR ------------------------------------------------------------------------
@@ -324,7 +328,7 @@ def share_get(token: str):
         lg = db.q1("SELECT data FROM logos WHERE id=? AND user_id=?", logo["id"], r["user_id"])
         logo["src"], logo["id"] = (lg["data"] if lg else None), None
     return {"name": r["name"], "kind": r["kind"], "content": r["content"], "design": design,
-            "owner": r["username"], "dynamic": bool(r["dynamic"]), "updated": r["updated"]}
+            "owner": r["username"], "dynamic": bool(r["dynamic"]), "updated": r["updated"], "brand": brand()}
 
 
 @app.get("/s/{token}")
@@ -572,6 +576,21 @@ def admin_settings(b: SettingsIn, a=Depends(admin_user)):
         raise HTTPException(400, "Escribe la dirección completa, por ejemplo https://qr.midominio.com")
     db.set_setting("public_url", url)
     return {"ok": True}
+
+
+class BrandIn(BaseModel):
+    name: str = Field("", max_length=40)
+    logo: str | None = Field(None, max_length=MAX_LOGO)
+
+
+@app.post("/api/admin/brand")
+def admin_brand(b: BrandIn, a=Depends(admin_user)):
+    """Nombre y logo propios de esta instalacion (cabecera, entrada y paginas compartidas)."""
+    if b.logo and not LOGO_RE.match(b.logo):
+        raise HTTPException(400, "La imagen no es válida (PNG, JPG, WebP, GIF o SVG)")
+    db.set_setting("brand_name", b.name.strip())
+    db.set_setting("brand_logo", b.logo or "")
+    return {"ok": True, "brand": brand()}
 
 
 # --- redireccion de los QR dinamicos ----------------------------------------------

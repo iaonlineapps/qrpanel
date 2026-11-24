@@ -22,7 +22,7 @@ applyTheme();
 // --- arranque --------------------------------------------------------------------
 async function boot() {
   const d = await detect();
-  S.store = d.store; S.info = d.info;
+  S.store = d.store; S.info = d.info; S.brand = d.info?.brand; applyBrand();
   if (S.store.mode === "server") {
     try { S.me = await S.store.me(); } catch { return showAuth(); }
   } else {
@@ -38,11 +38,22 @@ async function loadData() {
 }
 
 // --- acceso ----------------------------------------------------------------------
+function brandHtml(b = S.brand) {
+  const name = b?.name || "QRPanel", logo = b?.logo || "/static/icons/icon.svg";
+  const nm = name === "QRPanel" ? `QR<b>Panel</b>` : esc(name);
+  return `<img src="${esc(logo)}" alt=""><span>${nm}</span>`;
+}
+function applyBrand() {
+  document.title = S.brand?.name || "QRPanel";
+  const fav = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
+  if (fav && S.brand?.logo) fav.href = S.brand.logo;
+}
+
 function showAuth() {
   const first = S.info && !S.info.has_users;
   app.innerHTML = `<div class="auth"><canvas id="bgfx"></canvas>
     <form class="auth-card card" autocomplete="on">
-      <div class="brand"><img src="/static/icons/icon.svg" alt=""><span>QR<b>Panel</b></span></div>
+      <div class="brand">${brandHtml()}</div>
       <h2 id="a-title">${first ? "Crea la cuenta de administrador" : "Entra en tu generador de QR"}</h2>
       <label class="field"><span>Usuario</span><input name="u" autocomplete="username" required minlength="3" maxlength="32"></label>
       <label class="field"><span>Contraseña</span><input name="p" type="password" autocomplete="current-password" required minlength="6"></label>
@@ -69,7 +80,7 @@ function showAuth() {
         if (!r.first) { msg.className = "auth-msg ok"; msg.textContent = r.msg; return; }
       }
       await S.store.login(u, p);
-      S.me = await S.store.me();
+      S.me = await S.store.me(); S.brand = S.me.brand;
       await loadData(); shell(); route();
       if (reg) { confetti(); toast("¡Bienvenido! Crea tu primer QR"); }
     } catch (err) { msg.textContent = err.message; }
@@ -102,7 +113,7 @@ function shell() {
   const initial = (S.me.username || "?")[0].toUpperCase();
   app.innerHTML = `
   <header class="top">
-    <a class="brand" href="#/crear"><img src="/static/icons/icon.svg" alt=""><span>QR<b>Panel</b></span></a>
+    <a class="brand" href="#/crear">${brandHtml()}</a>
     <nav class="nav">${NAV.map(([k, t, i]) => `<a href="#/${k}" data-r="${k}">${icon(i, "sm")}${t}${k === "ajustes" && S.me.pending ? '<span class="badge-dot"></span>' : ""}</a>`).join("")}</nav>
     <div class="top-right">
       ${S.store.mode === "local" ? `<span class="local-pill" title="Los QR se guardan solo en este navegador">Modo local</span>` : ""}
@@ -204,7 +215,7 @@ function viewCreate(v, arg) {
         <div class="types">${Object.entries(TYPES).map(([k, t]) => `<button class="type" data-kind="${k}">${icon(t.icon, "lg")}${t.name}</button>`).join("")}</div>
         <div class="form" id="form"></div>
         ${canDyn ? `<div class="dyn-box" id="dynbox">
-          <label class="switch"><input type="checkbox" id="dyn"><i></i><span>QR dinámico</span><span class="tag">PRO GRATIS</span></label>
+          <label class="switch"><input type="checkbox" id="dyn"><i></i><span>QR dinámico</span><span class="tag">GRATIS</span></label>
           <div class="small muted" id="dyn-help">Podrás cambiar el destino cuando quieras sin reimprimir el QR, y verás cuántas veces lo escanean.</div>
           <div id="dyn-opts" class="form hidden">
             <label class="field half"><span>Código corto</span><input id="code" maxlength="40" placeholder="abc123"></label>
@@ -1116,10 +1127,17 @@ async function viewSettings(v) {
       <div class="row"><input class="input grow" id="purl" value="${esc(S.me.public_url_custom || "")}" placeholder="${esc(location.origin)}"><button class="btn primary" id="psave">Guardar</button></div>
       <div class="small faint">Ahora se usa: ${esc(S.me.public_url)}</div></div>
 
+    <div class="card pad"><h3>${icon("sparkle")}Tu marca</h3>
+      <div class="small muted">Pon el nombre y el logo de tu negocio o tu familia. Se ven arriba, en la pantalla de entrada y en las páginas de QR compartidos.</div>
+      <div class="row"><div class="drop" id="bdrop" style="padding:10px;flex:none"><div class="thumb" id="bthumb">${S.brand?.logo ? `<img src="${esc(S.brand.logo)}" alt="">` : icon("image", "lg")}</div></div>
+        <input class="input grow" id="bname" maxlength="40" placeholder="QRPanel" value="${esc(S.brand?.name && S.brand.name !== "QRPanel" ? S.brand.name : "")}"><input type="file" id="bfile" accept="image/*" hidden></div>
+      <div class="row"><button class="btn primary" id="bsave">Guardar marca</button><button class="btn ghost" id="breset">Volver a QRPanel</button></div></div>
+
     <div class="card pad" style="grid-column:1/-1"><div class="row between"><h3>${icon("users")}Usuarios</h3><button class="btn sm" id="uadd">${icon("plus", "sm")}Crear usuario</button></div><div class="ulist" id="ulist"></div></div>` : ""}
 
     <div class="card pad"><h3>${icon("info")}Acerca de</h3>
-      <div class="small">QRPanel ${esc(S.me.version || "")} · tu propio generador de códigos QR.</div>
+      <div class="small">QRPanel ${esc(S.me.version || "")} · tu propio generador de códigos QR. Código disponible gratis para uso no comercial (licencia PolyForm Noncommercial).</div>
+      <div class="small faint">«QR Code» es una marca registrada de DENSO WAVE INCORPORATED. Los nombres de servicios que aparecen (WhatsApp, Google Maps…) son de sus dueños y solo se usan para indicar con qué funcionan.</div>
       <div class="row"><a class="btn sm" href="https://github.com/pctecnikk/qrpanel" target="_blank" rel="noopener">${icon("github", "sm")}GitHub</a><a class="btn sm ghost" href="/static/vendor/LICENSES.txt" target="_blank">Licencias</a></div>
       <div class="small faint">Atajos: Ctrl+S guardar · Ctrl+Z deshacer · Ctrl+Y rehacer · Ctrl+V pegar logo o imagen.</div></div>
   </div>`;
@@ -1139,6 +1157,16 @@ async function viewSettings(v) {
   $("#pw", v)?.addEventListener("click", changePassword);
   $("#out", v)?.addEventListener("click", async () => { await S.store.logout(); location.reload(); });
   if (!admin) return;
+  let blogo = S.brand?.logo || null;
+  $("#bdrop", v).onclick = () => $("#bfile", v).click();
+  $("#bfile", v).onchange = async (e) => {
+    try { blogo = await readImage(e.target.files[0], 256); $("#bthumb", v).innerHTML = `<img src="${esc(blogo)}" alt="">`; } catch (err) { toast(err.message, "bad"); }
+  };
+  const saveBrand = async (b) => {
+    try { const r = await S.store.saveBrand(b); S.brand = r.brand; applyBrand(); shell(); route(); toast("Marca guardada"); } catch (err) { toast(err.message, "bad"); }
+  };
+  $("#bsave", v).onclick = () => saveBrand({ name: $("#bname", v).value, logo: blogo });
+  $("#breset", v).onclick = () => saveBrand({ name: "", logo: null });
   $("#psave", v).onclick = async () => {
     try { await S.store.saveSettings({ public_url: $("#purl", v).value }); S.me = await S.store.me(); toast("Dirección guardada"); route(); } catch (e) { toast(e.message, "bad"); }
   };

@@ -16,7 +16,9 @@ async function main() {
     return;
   }
   const q = await r.json();
-  document.title = `${q.name} · QRPanel`;
+  const bn = q.brand?.name || "QRPanel";
+  document.title = `${q.name} · ${bn}`;
+  if (q.brand?.logo) document.querySelector('link[rel="icon"]').href = q.brand.logo;
   const svg = render(q.content || " ", q.design).svg;
   const p = parse(q.content);
   const isUrl = /^https?:\/\//i.test(q.content);
@@ -28,6 +30,7 @@ async function main() {
       ${isUrl ? `<a class="btn ghost" href="${esc(q.content)}" target="_blank" rel="noopener noreferrer" style="justify-content:flex-start">${icon("link")}<span style="overflow:hidden;text-overflow:ellipsis">${esc(q.content)}</span></a>` : p.kind === "wifi" ? `<div class="small">Red WiFi: <b>${esc(p.fields.ssid)}</b></div>` : ""}
       <div class="row"><select id="fmt" class="input" style="width:auto"><option value="png">PNG</option><option value="svg">SVG</option><option value="jpg">JPG</option><option value="pdf">PDF</option></select>
         <button class="btn primary grow" id="dl">${icon("download")}Descargar</button></div>
+      ${bn !== "QRPanel" || q.brand?.logo ? `<div class="row" style="justify-content:center;gap:8px">${q.brand?.logo ? `<img src="${esc(q.brand.logo)}" alt="" width="28" height="28" style="border-radius:8px;object-fit:contain">` : ""}<b>${esc(bn)}</b></div>` : ""}
       <div class="small faint" style="text-align:center">Hecho con <a href="https://github.com/pctecnikk/qrpanel" target="_blank" rel="noopener">QRPanel</a> · tu propio generador de QR</div>
     </div></div>`;
   $("#dl").onclick = async (e) => {

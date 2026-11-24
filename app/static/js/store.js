@@ -50,6 +50,7 @@ export const ServerStore = {
   addUser: (u) => api("POST", "/api/admin/users", u),
   updUser: (id, u) => api("PATCH", `/api/admin/users/${id}`, u),
   delUser: (id) => api("DELETE", `/api/admin/users/${id}`),
+  saveBrand: (b) => api("POST", "/api/admin/brand", b),
   saveSettings: (s) => api("POST", "/api/admin/settings", s),
 };
 
