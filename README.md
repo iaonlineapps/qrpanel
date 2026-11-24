@@ -28,7 +28,8 @@ de memoria.
   También puedes guardar tus propias plantillas.
 - **Comprobación de lectura real:** mientras diseñas, QRPanel lee el QR como lo haría un
   móvil (en grande y en pequeño) y te da una nota de 0 a 100 con consejos si algo falla.
-- **Descargas** en PNG, SVG (vectorial, para imprenta), JPG y WebP, hasta 4096 px. También
+- **Descargas** en PNG, SVG (vectorial, para imprenta), JPG, WebP y PDF (A4 listo para
+  imprimir), hasta 4096 px. También
   copiar la imagen, compartirla desde el móvil o copiar el texto.
 - **QR dinámicos** con código corto (`/r/carta`), pausa, fecha de caducidad y máximo de
   lecturas. Si cambias el destino, el QR impreso sigue valiendo.

@@ -3,6 +3,7 @@ import { TYPES, encode, missing, parse } from "./content.js";
 import { detect, LocalStore } from "./store.js";
 import { PRESETS, surprise } from "./presets.js";
 import { makeZip } from "./zip.js";
+import { makePdf } from "./pdf.js";
 import { icon, quickLogo, $, $$, esc, debounce, h, toast, dialog, confirmDlg, promptDlg, menu, confetti, fmtDate, ago, fmtN, download, slug, readImage, fileToCanvas } from "./ui.js";
 
 const S = { store: LocalStore, info: null, me: null, qrs: [], logos: [], templates: [], loaded: false };
@@ -152,13 +153,17 @@ function renderQR(q, extra = {}) {
 async function exportQR(q, fmt = "png", size = 1024) {
   const svg = render(q.content || " ", q.design, { logoSrc: logoSrc(q.design) }).svg;
   if (fmt === "svg") return new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n${svg}`], { type: "image/svg+xml" });
-  const D = mergeDesign(q.design);
-  const solidBg = fmt === "jpg" ? (D.bg.type === "none" ? "#ffffff" : "#ffffff") : null;
+  if (fmt === "pdf") {
+    const cv = await svgToCanvas(svg, Math.max(size, 2048), "#ffffff");
+    const jpg = await new Promise((res) => cv.toBlob(res, "image/jpeg", 0.95));
+    return makePdf(jpg, cv.width, cv.height, q.name || "QR");
+  }
+  const solidBg = fmt === "jpg" ? "#ffffff" : null;
   const cv = await svgToCanvas(svg, size, solidBg);
   const mime = { png: "image/png", jpg: "image/jpeg", webp: "image/webp" }[fmt] || "image/png";
   return new Promise((res) => cv.toBlob(res, mime, 0.95));
 }
-const EXT = { png: "png", jpg: "jpg", webp: "webp", svg: "svg" };
+const EXT = { png: "png", jpg: "jpg", webp: "webp", svg: "svg", pdf: "pdf" };
 
 // =============================================================================
 // CREAR / EDITAR
@@ -266,7 +271,7 @@ function viewCreate(v, arg) {
       <div class="card meter" id="meter"><div class="gauge"><svg viewBox="0 0 64 64"><circle class="bgc" cx="32" cy="32" r="27"/><circle class="fgc" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="169.6"/></svg><b id="g-n">–</b></div>
         <div class="grow"><h4><span class="st" id="g-st">Comprobando…</span></h4><div class="small muted" id="g-sub">Leo el QR como lo haría un móvil.</div><ul id="g-tips"></ul></div></div>
       <div class="card dl">
-        <label class="field half"><span>Formato</span><select id="fmt"><option value="png">PNG</option><option value="svg">SVG (vectorial)</option><option value="jpg">JPG</option><option value="webp">WebP</option></select></label>
+        <label class="field half"><span>Formato</span><select id="fmt"><option value="png">PNG</option><option value="svg">SVG (vectorial)</option><option value="jpg">JPG</option><option value="webp">WebP</option><option value="pdf">PDF (para imprimir)</option></select></label>
         <label class="field half"><span>Tamaño</span><select id="size"><option value="512">512 px</option><option value="1024" selected>1024 px</option><option value="2048">2048 px</option><option value="4096">4096 px (imprenta)</option></select></label>
         <label class="field full"><span>Nombre</span><input id="name" maxlength="120" placeholder="Mi QR"></label>
         <div class="actions full">
@@ -624,10 +629,11 @@ function viewCreate(v, arg) {
   }
   $("#save", v).onclick = save;
   $("#dl", v).onclick = async (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
     const fmt = $("#fmt", v).value, size = +$("#size", v).value;
     const blob = await exportQR({ content: content(), design: E.design }, fmt, size);
     download(blob, `${slug(E.name || autoName())}.${EXT[fmt]}`);
-    const r = e.currentTarget.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top, 40);
+    confetti(r.left + r.width / 2, r.top, 40);
   };
   $("#copy", v).onclick = async () => {
     try {
@@ -769,6 +775,8 @@ function qrMenu(anchor, q, redraw) {
     { icon: "edit", label: "Editar", run: () => (location.hash = `#/editar/${q.id}`) },
     { icon: "download", label: "Descargar PNG", run: async () => download(await exportQR(q, "png", 1024), `${slug(q.name)}.png`) },
     { icon: "download", label: "Descargar SVG", run: async () => download(await exportQR(q, "svg"), `${slug(q.name)}.svg`) },
+    { icon: "download", label: "Descargar JPG", run: async () => download(await exportQR(q, "jpg", 1024), `${slug(q.name)}.jpg`) },
+    { icon: "download", label: "Descargar PDF", run: async () => download(await exportQR(q, "pdf", 2048), `${slug(q.name)}.pdf`) },
     { icon: "copy", label: "Duplicar", run: async () => {
       const c = structuredClone(q); delete c.id; c.name = q.name + " (copia)"; c.code = null; c.dynamic = q.dynamic;
       const n = await S.store.create(c); S.qrs.unshift(n); redraw(); toast("Duplicado");
@@ -996,7 +1004,7 @@ function viewBatch(v) {
       <div class="row"><button class="btn sm" id="csv">${icon("upload", "sm")}Cargar CSV</button><input type="file" id="csvf" accept=".csv,.txt,text/csv" hidden>
         <button class="btn sm ghost" id="seq">${icon("sparkle", "sm")}Generar numerados</button><span class="grow"></span><span class="small muted" id="count"></span></div>
       <div class="row">
-        <label class="field half" style="flex:1"><span>Formato</span><select id="bfmt"><option value="png">PNG</option><option value="svg">SVG</option><option value="jpg">JPG</option></select></label>
+        <label class="field half" style="flex:1"><span>Formato</span><select id="bfmt"><option value="png">PNG</option><option value="svg">SVG</option><option value="jpg">JPG</option><option value="webp">WebP</option><option value="pdf">PDF</option></select></label>
         <label class="field half" style="flex:1"><span>Tamaño</span><select id="bsize"><option value="512">512 px</option><option value="1024" selected>1024 px</option><option value="2048">2048 px</option></select></label>
       </div>
       <div class="progress hidden" id="prog"><i></i></div>
