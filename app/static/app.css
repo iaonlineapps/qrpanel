@@ -408,3 +408,8 @@ details.table td,details.table th{padding:4px 6px;border-bottom:1px solid var(--
 .ver-foot b{font-weight:600;color:var(--muted)}.ver-foot a{color:inherit}
 @media (max-width:760px){.ver-foot{padding-bottom:90px}}
 .p3d-form input[type=range]{accent-color:var(--accent)}
+
+/* mascota */
+.photo-field .row{align-items:center}
+.photo-thumb{width:72px;height:72px;border-radius:16px;overflow:hidden;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);flex:none}
+.photo-thumb img{width:100%;height:100%;object-fit:cover}

@@ -2,7 +2,7 @@ import asyncio, hashlib, json, re, secrets, time
 from contextlib import asynccontextmanager
 from html import escape
 from pathlib import Path
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, quote
 
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse, RedirectResponse, Response
@@ -192,6 +192,7 @@ class QRIn(BaseModel):
     pin_hash: str | None = Field(None, max_length=200)  # solo al importar una copia
 
 
+PHOTO_RE = re.compile(r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")
 PIN_RE = re.compile(r"^[A-Za-z0-9]{4,32}$")
 PIN_HASH_RE = re.compile(r"^pbkdf2\$(\d{4,7})\$[0-9a-f]{32}\$[0-9a-f]{64}$")
 
@@ -236,10 +237,16 @@ def _check(b: QRIn, qid: int | None = None) -> tuple[str | None, str | None]:
     blob = json.dumps(b.design) + json.dumps(b.fields)
     if len(blob) > MAX_JSON:
         raise HTTPException(413, "El diseño es demasiado grande")
+    if b.kind == "pet":
+        photo = b.fields.get("photo") or ""
+        if photo and not (PHOTO_RE.match(photo) and len(photo) <= 400_000):
+            b.fields["photo"] = ""
     if not b.dynamic:
         return None, None
     target = (b.target or "").strip()
-    if not TARGET_RE.match(target):
+    if b.kind == "pet":
+        target = "pet:"  # la ficha la pinta el servidor en /r/{code}
+    elif not TARGET_RE.match(target):
         raise HTTPException(400, "Un QR dinámico necesita un destino válido (https://, mailto:, tel:...)")
     code = (b.code or "").strip()
     if code:
@@ -706,6 +713,52 @@ def _ua_info(ua: str) -> tuple[str, str, str]:
     return device, os_, br
 
 
+def _tel(p: str) -> str:
+    return re.sub(r"[^0-9+]", "", p or "")[:20]
+
+
+def _pet_page(r) -> HTMLResponse:
+    f = json.loads(r["fields"] or "{}")
+    e = lambda k: escape(str(f.get(k) or "").strip())
+    name = e("name") or "Mascota"
+    species = {"perro": "Perro", "gato": "Gato"}.get(f.get("species") or "perro", "")
+    phone, phone2 = _tel(f.get("phone")), _tel(f.get("phone2"))
+    wa = re.sub(r"[^0-9]", "", phone)
+    found = quote(f"¡Hola! He encontrado a {f.get('name') or 'tu mascota'} gracias a su QR.")
+    photo = f.get("photo") or ""
+    photo_html = (f'<img class="photo" src="{escape(photo)}" alt="Foto de {name}">' if PHOTO_RE.match(photo)
+                  else '<div class="photo none">🐾</div>')
+    rows = [(lbl, e(k)) for k, lbl in (("breed", "Raza"), ("color", "Color / señas"), ("sex", "Sexo"), ("age", "Edad"),
+                                         ("chip", "Microchip"), ("vet", "Veterinario"), ("zone", "Vive en"))]
+    info = "".join(f"<dt>{lbl}</dt><dd>{v}</dd>" for lbl, v in rows if v)
+    blocks = ""
+    if f.get("health"):
+        blocks += f'<section class="health"><h2>⚕️ Salud</h2><p>{e("health")}</p></section>'
+    if f.get("notes"):
+        blocks += f'<section><h2>Cómo es</h2><p>{e("notes")}</p></section>'
+    btns = ""
+    if phone:
+        btns += f'<a class="b call" href="tel:{escape(phone)}">📞 Llamar a {e("owner") or "su familia"}</a>'
+    if wa:
+        btns += f'<a class="b wa" href="https://wa.me/{wa}?text={found}">💬 Mandar un WhatsApp</a>'
+        btns += f'<button class="b loc" type="button" id="loc" data-wa="{wa}" data-name="{name}">📍 Enviar dónde estoy</button>'
+    if phone2:
+        btns += f'<a class="b alt" href="tel:{escape(phone2)}">📞 Otro teléfono</a>'
+    if f.get("email"):
+        btns += f'<a class="b alt" href="mailto:{e("email")}?subject={found}">✉️ Mandar un email</a>'
+    lost = f'<div class="lost">¡Me he perdido! Ayúdame a volver a casa</div>' if f.get("lost") else ""
+    reward = f'<div class="reward">🎁 {e("reward")}</div>' if f.get("reward") else ""
+    html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>{name} · ¿Me has encontrado?</title><link rel="stylesheet" href="/static/pet.css"></head><body>
+<main>{lost}{photo_html}<h1>Hola, soy {name}</h1><p class="sub">{species}{" · " if species and f.get("breed") else ""}{e("breed")}</p>
+<p class="lead">Si me has encontrado, por favor avisa a mi familia. ¡Gracias!</p>{reward}
+<div class="btns">{btns}</div>{f'<dl>{info}</dl>' if info else ""}{blocks}
+<p class="foot">Ficha hecha con QRPanel</p></main>
+<script src="/static/js/pet.js"></script></body></html>"""
+    return HTMLResponse(html, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
+
 def _pin_page(code: str, name: str, error: str = "", status: int = 200) -> HTMLResponse:
     err = f'<p class="err">{escape(error)}</p>' if error else ""
     html = f"""<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
@@ -783,6 +836,8 @@ def _scan(r, request: Request, status: int = 302):
     db.run("INSERT INTO scans(qr_id,at,day,device,os,browser,visitor) VALUES(?,?,?,?,?,?,?)",
            r["id"], now, day, device, os_, br, visitor)
     db.run("UPDATE qrs SET scans=scans+1, last_scan=? WHERE id=?", now, r["id"])
+    if r["kind"] == "pet":
+        return _pet_page(r)
     return RedirectResponse(r["target"], status_code=status, headers={"Cache-Control": "no-store"})
 
 

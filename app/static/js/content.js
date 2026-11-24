@@ -71,6 +71,27 @@ export const TYPES = {
     ],
     encode: (f) => `https://maps.google.com/?q=${encodeURIComponent(`${(f.lat || "").trim()},${(f.lng || "").trim()}`)}${f.label ? `(${encodeURIComponent(f.label)})` : ""}`,
   },
+  pet: {
+    name: "Mascota", icon: "paw", dyn: true, page: true,
+    fields: [
+      { k: "photo", label: "Foto", type: "image" },
+      { k: "name", label: "Nombre de la mascota", ph: "Toby", half: true, req: true },
+      { k: "species", label: "Es un…", type: "select", half: true, options: [["perro", "Perro"], ["gato", "Gato"], ["otro", "Otro"]] },
+      { k: "breed", label: "Raza", ph: "Mestizo, Beagle…", half: true }, { k: "color", label: "Color / señas", ph: "Marrón con mancha blanca", half: true },
+      { k: "sex", label: "Sexo", type: "select", half: true, options: [["", "—"], ["macho", "Macho"], ["hembra", "Hembra"]] }, { k: "age", label: "Edad o nacimiento", ph: "3 años", half: true },
+      { k: "chip", label: "Nº de microchip", ph: "941000000000000", half: true }, { k: "vet", label: "Veterinario", ph: "Clínica… y teléfono", half: true },
+      { k: "health", label: "Salud: alergias, medicación, enfermedades", type: "textarea", ph: "Toma pastillas para el corazón por la mañana" },
+      { k: "notes", label: "Carácter y cosas a saber", type: "textarea", ph: "Es miedoso: no le persigas, llámale por su nombre" },
+      { k: "owner", label: "Nombre del dueño", ph: "David", half: true, req: true }, { k: "phone", label: "Teléfono (con prefijo)", ph: "+34 600 000 000", type: "tel", half: true, req: true },
+      { k: "phone2", label: "Otro teléfono", ph: "+34 …", type: "tel", half: true }, { k: "email", label: "Email", ph: "tu@correo.com", type: "email", half: true },
+      { k: "zone", label: "Zona donde vive", ph: "Barrio, ciudad" }, { k: "reward", label: "Recompensa", ph: "Se gratificará" },
+      { k: "lost", label: "Se ha perdido: mostrar un aviso grande", type: "check" },
+    ],
+    // sin servidor (o si se lee sin internet) el QR lleva los datos en texto
+    encode: (f) => [`🐾 ${f.name ? "Me llamo " + f.name : "Mascota"}${(f.species || "perro") !== "otro" ? ` (${f.species || "perro"}${f.breed ? ", " + f.breed : ""})` : ""}`,
+      f.lost && "¡ME HE PERDIDO!", `Si me encuentras, avisa a ${f.owner || "mi familia"}: ${f.phone || ""}`, f.phone2 && `Otro teléfono: ${f.phone2}`,
+      f.chip && `Microchip: ${f.chip}`, f.health && `Salud: ${f.health}`, f.reward && `Recompensa: ${f.reward}`].filter(Boolean).join("\n"),
+  },
   event: {
     name: "Evento", icon: "calendar",
     fields: [

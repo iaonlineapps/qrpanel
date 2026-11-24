@@ -329,6 +329,8 @@ function viewCreate(v, arg) {
       const cls = `field ${fd.half ? "half" : ""}`;
       if (fd.type === "textarea") return `<label class="${cls}"><span>${fd.label}</span><textarea data-f="${fd.k}" placeholder="${esc(fd.ph || "")}" maxlength="2000">${val}</textarea></label>`;
       if (fd.type === "select") return `<label class="${cls}"><span>${fd.label}</span><select data-f="${fd.k}">${fd.options.map(([k, l]) => `<option value="${k}" ${f[fd.k] === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>`;
+      if (fd.type === "image") return `<div class="field photo-field"><span>${fd.label} <span class="faint">(opcional)</span></span><div class="row"><div class="photo-thumb">${f[fd.k] ? `<img src="${esc(f[fd.k])}" alt="">` : icon("paw", "lg")}</div>
+        <div class="row" style="flex-wrap:wrap"><button type="button" class="btn sm" data-act="photo">${icon("image", "sm")}${f[fd.k] ? "Cambiar foto" : "Poner foto"}</button>${f[fd.k] ? `<button type="button" class="btn sm ghost" data-act="nophoto">Quitar</button>` : ""}<input type="file" accept="image/*" data-photo="${fd.k}" hidden></div></div></div>`;
       if (fd.type === "check") return `<label class="${cls} switch"><input type="checkbox" data-f="${fd.k}" ${f[fd.k] ? "checked" : ""}><i></i><span>${fd.label}</span></label>`;
       if (fd.type === "button") return `<div class="${cls}"><button class="btn sm" data-act="${fd.action}" style="align-self:flex-start">${icon("pin", "sm")}${fd.label}</button></div>`;
       if (fd.type === "password") return `<label class="${cls}"><span>${fd.label}</span><div class="pw"><input type="password" data-f="${fd.k}" value="${val}" placeholder="${esc(fd.ph || "")}" maxlength="200"><button type="button" data-eye>${icon("eye", "sm")}</button></div></label>`;
@@ -341,10 +343,19 @@ function viewCreate(v, arg) {
     E.fields[E.kind][k] = e.target.type === "checkbox" ? e.target.checked : e.target.value;
     refresh();
   });
+  formEl.addEventListener("change", async (e) => {
+    const k = e.target.dataset.photo; if (!k || !e.target.files[0]) return;
+    try {
+      const cv = await fileToCanvas(e.target.files[0], 640);
+      E.fields[E.kind][k] = cv.toDataURL("image/jpeg", 0.82); drawForm(); refresh();
+    } catch { toast("No he podido leer esa imagen", "bad"); }
+  });
   formEl.addEventListener("change", (e) => { if (e.target.dataset.f && e.target.tagName === "SELECT") { E.fields[E.kind][e.target.dataset.f] = e.target.value; refresh(); } });
   formEl.addEventListener("click", (e) => {
     const eye = e.target.closest("[data-eye]");
     if (eye) { const i = eye.previousElementSibling; i.type = i.type === "password" ? "text" : "password"; eye.innerHTML = icon(i.type === "password" ? "eye" : "eyeoff", "sm"); }
+    if (e.target.closest('[data-act="photo"]')) formEl.querySelector("[data-photo]").click();
+    if (e.target.closest('[data-act="nophoto"]')) { E.fields[E.kind].photo = ""; drawForm(); refresh(); }
     if (e.target.closest('[data-act="geo"]')) {
       if (!navigator.geolocation) return toast("Este navegador no da la ubicación", "bad");
       navigator.geolocation.getCurrentPosition((p) => {
@@ -359,9 +370,12 @@ function viewCreate(v, arg) {
   const until = (ts) => { const m = Math.round((ts * 1000 - Date.now()) / 60000); return m < 60 ? `dentro de ${Math.max(1, m)} min` : m < 1440 * 2 ? `dentro de ${Math.round(m / 60)} h` : `dentro de ${Math.round(m / 1440)} días`; };
   function updDyn() {
     const box = $("#dynbox", v); if (!box) return;
-    const ok = !!TYPES[E.kind].dyn;
+    const ok = !!TYPES[E.kind].dyn, page = !!TYPES[E.kind].page;
     box.classList.toggle("hidden", !ok);
     if (!ok && E.dynamic) E.dynamic = false;
+    if (page && !E.dynamic) { E.dynamic = true; if (!E.code) E.code = randCode(); setTimeout(refresh); }
+    $("#dyn", v).disabled = page;
+    $("#dyn-help", v).innerHTML = page ? `${icon("paw", "sm")} Quien escanee la placa verá la <b>ficha de tu mascota</b> con tu teléfono, botones para llamarte o mandarte un WhatsApp y su ubicación. Puedes cambiar los datos cuando quieras sin reimprimir la placa, y marcarla como perdida.` : "Podrás cambiar el destino cuando quieras sin reimprimir el QR, y verás cuántas veces lo escanean.";
     $("#dyn", v).checked = E.dynamic;
     $("#dyn-opts", v).classList.toggle("hidden", !E.dynamic);
     if (E.dynamic && !E.code) E.code = randCode();
@@ -384,7 +398,7 @@ function viewCreate(v, arg) {
     $("#pinbox", v).classList.toggle("hidden", !pinOn); $("#pin-info", v).classList.toggle("hidden", !pinOn);
     $("#pin", v).placeholder = E.has_pin ? "Déjalo vacío para mantener el PIN actual" : "1234";
     const base = S.me.public_url || location.origin;
-    $("#dyn-url", v).innerHTML = E.dynamic ? `El QR llevará <b>${esc(base)}/r/${esc(E.code)}</b> y te redirigirá a tu destino.${/\/\/(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base) ? `<br><span style="color:var(--warn)">${icon("alert", "sm")} Esa dirección solo funciona en tu red de casa. Pon tu dirección pública en Ajustes para que funcione desde cualquier móvil.</span>` : ""}` : "";
+    $("#dyn-url", v).innerHTML = E.dynamic ? `El QR llevará <b>${esc(base)}/r/${esc(E.code)}</b> ${TYPES[E.kind].page ? "y abrirá la ficha." : "y te redirigirá a tu destino."}${/\/\/(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base) ? `<br><span style="color:var(--warn)">${icon("alert", "sm")} Esa dirección solo funciona en tu red de casa. Pon tu dirección pública en Ajustes para que funcione desde cualquier móvil.</span>` : ""}` : "";
   }
   if (canDyn) {
     $("#dyn", v).addEventListener("change", (e) => { E.dynamic = e.target.checked; updDyn(); refresh(); if (E.dynamic) $("#stage").animate([{ transform: "scale(1)" }, { transform: "scale(1.03)" }, { transform: "scale(1)" }], { duration: 400 }); });
@@ -508,7 +522,7 @@ function viewCreate(v, arg) {
   $("#ffont", v).addEventListener("change", (e) => { E.design.frame.font = e.target.value; commit(); });
 
   // logo
-  const QUICK = [["link", "#2563eb"], ["wifi", "#0891b2"], ["mail", "#7c3aed"], ["phone", "#16a34a"], ["chat", "#22c55e"], ["pin", "#dc2626"], ["calendar", "#ea580c"], ["user", "#0f172a"], ["heart", "#e11d48"], ["star", "#f59e0b"], ["cart", "#4f46e5"], ["camera", "#db2777"], ["music", "#9333ea"], ["gift", "#be123c"], ["coffee", "#92400e"], ["globe", "#0369a1"]];
+  const QUICK = [["link", "#2563eb"], ["wifi", "#0891b2"], ["mail", "#7c3aed"], ["phone", "#16a34a"], ["chat", "#22c55e"], ["pin", "#dc2626"], ["calendar", "#ea580c"], ["user", "#0f172a"], ["heart", "#e11d48"], ["star", "#f59e0b"], ["cart", "#4f46e5"], ["camera", "#db2777"], ["music", "#9333ea"], ["gift", "#be123c"], ["coffee", "#92400e"], ["globe", "#0369a1"], ["paw", "#b45309"]];
   $("#quick", v).innerHTML = QUICK.map(([n, c]) => `<button class="logo-it" data-q="${n}" data-c="${c}" title="${n}"><img src="${quickLogo(n, c)}" alt=""></button>`).join("");
   $("#quick", v).addEventListener("click", (e) => {
     const b = e.target.closest("[data-q]"); if (!b) return;
@@ -669,7 +683,7 @@ function viewCreate(v, arg) {
   }
   function autoName() {
     const f = E.fields[E.kind] || {};
-    const base = f.url || f.ssid || [f.first, f.last].filter(Boolean).join(" ") || f.to || f.phone || f.title || f.label || f.text || TYPES[E.kind].name;
+    const base = (E.kind === "pet" && f.name ? "🐾 " + f.name : "") || f.url || f.ssid || [f.first, f.last].filter(Boolean).join(" ") || f.to || f.phone || f.title || f.label || f.text || TYPES[E.kind].name;
     return String(base).replace(/^https?:\/\/(www\.)?/, "").slice(0, 60);
   }
   $("#name", v).value = E.name || "";

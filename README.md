@@ -13,8 +13,9 @@ de memoria.
 
 **Qué incluye:**
 
-- **10 tipos de QR:** enlace, texto, WiFi, contacto (vCard), email, WhatsApp, llamada, SMS,
-  ubicación y evento de calendario.
+- **11 tipos de QR:** enlace, texto, WiFi, contacto (vCard), email, WhatsApp, llamada, SMS,
+  ubicación, evento de calendario y **mascota**: una ficha con foto y tus datos por si se
+  pierde, con botones para llamarte, mandarte un WhatsApp o enviarte dónde está.
 - **Diseño a tu gusto:** 10 formas de módulo (cuadrado, redondeado, líquido, puntos, píxel,
   elegante, rombo, estrella, barras y líneas), 6 marcos y 7 centros para los "ojos", colores
   sólidos o con degradado lineal o radial, fondo de color, degradado o transparente, y
