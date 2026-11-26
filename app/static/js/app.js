@@ -38,6 +38,7 @@ async function boot() {
   await loadData();
   shell();
   route();
+  newsIfUpdated();
 }
 async function loadData() {
   const [q, l, t] = await Promise.all([S.store.list(), S.store.logos(), S.store.templates()]);
@@ -113,7 +114,8 @@ async function showAuth(adding = false) {
       if (adding) { location.hash = "#/crear"; location.reload(); return; }
       S.me = await S.store.me(); S.brand = S.me.brand;
       await loadData(); shell(); route();
-      if (reg) { confetti(); toast("¡Bienvenido! Crea tu primer QR"); }
+      if (!reg) newsIfUpdated();
+      if (reg) { try { localStorage.setItem("qp-visto", webVersion()); } catch { /* nada */ } confetti(); toast("¡Bienvenido! Crea tu primer QR"); }
     } catch (err) { msg.textContent = err.message; }
   });
 }
@@ -141,7 +143,31 @@ function bgFx(cv) {
 // --- versiones (web y app de Android), para ver de un vistazo si van acordes
 const webVersion = () => S.info?.version || S.me?.version || "";
 const versionsText = () => `Web ${webVersion()}` + (APP ? ` · App ${appVersion()}` : "");
-const versionsHtml = () => `QRPanel · <b>Web ${esc(webVersion())}</b>` + (APP ? ` · <b>App ${esc(appVersion())}</b>` : ` · <a href="https://github.com/pctecnikk/qrpanel/releases?q=android&expanded=true" target="_blank" rel="noopener">App Android</a>`);
+const versionsHtml = () => `QRPanel · <b>Web ${esc(webVersion())}</b>` + (APP ? ` · <b>App ${esc(appVersion())}</b>` : ` · <a href="https://github.com/pctecnikk/qrpanel/releases?q=android&expanded=true" target="_blank" rel="noopener">App Android</a>`)
+  + (S.store?.mode === "server" ? ` · <a href="#" data-news>Novedades</a>` : "");
+
+// --- novedades: tras actualizar el servidor se enseñan una vez (en el navegador y en la app)
+const verNewer = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+const newsMd = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`(.+?)`/g, "<code>$1</code>");
+/** since: undefined = todas; "" = nunca se vio ninguna (solo la actual); "1.0.14" = las posteriores */
+async function showNews(since) {
+  const d = await (await fetch("/api/novedades?lang=" + LANG, { credentials: "same-origin" })).json();
+  const auto = since !== undefined;
+  const list = auto ? d.novedades.filter((n) => (since ? verNewer(n.version, since) : n.version === d.version)) : d.novedades;
+  if (!list.length) return;
+  const title = auto ? tr("QRPanel se ha actualizado a la versión") + " " + d.version : tr("Novedades de QRPanel");
+  return dialog({ title, wide: true, buttons: [["Entendido", true, "primary"]],
+    body: `<div class="news" data-noi18n>${auto ? `<p class="muted">${esc(tr("Esto es lo nuevo:"))}</p>` : ""}` +
+      list.map((n) => `<h4>${esc(tr("Versión"))} ${esc(n.version)}${n.version === d.version ? ` <span class="news-tag">${esc(tr("la tuya"))}</span>` : ""}</h4>
+        <ul>${n.items.map((i) => `<li>${newsMd(i)}</li>`).join("")}</ul>`).join("") + `</div>` });
+}
+function newsIfUpdated() {
+  const v = webVersion(); if (S.store?.mode !== "server" || !v) return;
+  let seen = null; try { seen = localStorage.getItem("qp-visto"); localStorage.setItem("qp-visto", v); } catch { return; }
+  if (seen === v || (seen && !verNewer(v, seen))) return;
+  showNews(seen || "").catch(() => {});
+}
+document.addEventListener("click", (e) => { if (e.target.closest("[data-news]")) { e.preventDefault(); showNews().catch(() => {}); } });
 
 // --- esqueleto y rutas -----------------------------------------------------------------
 const NAV = [["crear", "Crear", "plus"], ["biblioteca", "Biblioteca", "library"], ["escanear", "Escanear", "scan"], ["lotes", "Por lotes", "layers"], ["estadisticas", "Estadísticas", "chart"], ["ajustes", "Ajustes", "gear"]];
@@ -174,6 +200,7 @@ function shell() {
     { icon: "plus", label: "Añadir otra cuenta", run: () => showAuth(true) },
     "-",
     { icon: "info", label: versionsText(), run: () => (location.hash = "#/ajustes") },
+    { icon: "sparkle", label: "Novedades", run: () => showNews().catch(() => {}) },
     "-",
     { icon: "logout", label: "Salir", danger: true, run: async () => { await S.store.logout(); location.reload(); } },
     ...(accs.length ? [{ icon: "logout", label: "Salir de todas las cuentas", danger: true, run: async () => { await S.store.logoutAll(); location.reload(); } }] : []),
@@ -1811,7 +1838,7 @@ async function viewSettings(v) {
     <div class="card pad"><h3>${icon("info")}Acerca de</h3>
       <div class="small"><b>Web ${esc(S.info?.version || S.me.version || "")}</b>${APP ? ` · <b>App ${esc(appVersion())}</b>` : ""} · QRPanel, tu propio generador de códigos QR. Código disponible gratis para uso no comercial (licencia PolyForm Noncommercial).</div>
       <div class="small faint">«QR Code» es una marca registrada de DENSO WAVE INCORPORATED. Los nombres de servicios que aparecen (WhatsApp, Google Maps…) son de sus dueños y solo se usan para indicar con qué funcionan.</div>
-      <div class="row"><a class="btn sm" href="https://github.com/pctecnikk/qrpanel" target="_blank" rel="noopener">${icon("github", "sm")}GitHub</a><a class="btn sm ghost" href="/static/vendor/LICENSES.txt" target="_blank">Licencias</a></div>
+      <div class="row"><a class="btn sm" href="https://github.com/pctecnikk/qrpanel" target="_blank" rel="noopener">${icon("github", "sm")}GitHub</a><a class="btn sm ghost" href="/static/vendor/LICENSES.txt" target="_blank">Licencias</a>${S.store.mode === "server" ? `<button class="btn sm ghost" data-news>${icon("sparkle", "sm")}Novedades</button>` : ""}</div>
       <div class="small faint">Atajos: Ctrl+S guardar · Ctrl+Z deshacer · Ctrl+Y rehacer · Ctrl+V pegar logo o imagen.</div></div>
   </div>`;
   $("#lang-seg", v).onclick = (e) => { const b = e.target.closest("[data-l]"); if (b && b.dataset.l !== LANG) setLang(b.dataset.l); };
