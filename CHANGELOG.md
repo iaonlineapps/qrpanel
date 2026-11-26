@@ -4,6 +4,13 @@ La versión de la web está en [`app/VERSION`](app/VERSION) y se ve en **Ajustes
 La app de Android tiene su propio número y sus novedades en
 [`android/src/main/res/raw/novedades.md`](android/src/main/res/raw/novedades.md).
 
+## 1.0.15
+
+- **Cambio rápido de usuario.** En el menú de tu foto salen las otras cuentas abiertas en este
+  dispositivo: tocas una y pasas a ella sin cerrar sesión ni escribir la contraseña. Con
+  «Añadir otra cuenta» entras en otra (esa vez sí con su contraseña). Al salir, la pantalla de
+  entrada te ofrece las cuentas recordadas, y la ✕ quita una del dispositivo.
+
 ## 1.0.14
 
 - **Encuadra la foto al subirla.** Al poner una foto (mascota, producto, inmueble, logo…) se abre

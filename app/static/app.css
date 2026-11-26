@@ -435,3 +435,11 @@ details.table td,details.table th{padding:4px 6px;border-bottom:1px solid var(--
 .tables-grid .tq{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center;font-size:13px;font-weight:700;color:#111}
 .tables-grid svg{width:100%;height:auto;display:block}
 .lang-seg{align-self:center;margin-top:6px}
+/* cambio rápido de usuario */
+.acc-list{display:flex;flex-direction:column;gap:8px}
+.acc-row{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:14px;padding:3px;background:var(--panel)}
+.acc-pick{flex:1;display:flex;align-items:center;gap:12px;padding:8px 10px;text-align:left;font-size:15px;font-weight:600;min-width:0;background:none;border:0;color:inherit;cursor:pointer}
+.acc-pick span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc-pick .avatar.sm{width:32px;height:32px;font-size:13px}
+.acc-forget{opacity:.6}.acc-forget:hover{opacity:1}
+.acc-or{text-align:center;font-size:13px;color:var(--muted)}

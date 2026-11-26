@@ -59,19 +59,37 @@ function applyBrand() {
 /** Selector de idioma: los nombres no se traducen para que cada uno encuentre el suyo. */
 const langSeg = (id) => `<div class="seg lang-seg" id="${id}" data-noi18n>${[["es", "Español"], ["en", "English"]].map(([k, n]) => `<button type="button" data-l="${k}" class="${LANG === k ? "on" : ""}">${n}</button>`).join("")}</div>`;
 
-function showAuth() {
+// --- cambio rapido de usuario: el servidor recuerda las cuentas abiertas en este dispositivo
+// (en una cookie que el JavaScript no puede leer) y deja pasar de una a otra sin contraseña.
+async function getAccounts() { try { return (await S.store.accounts()).accounts || []; } catch { return []; } }
+async function switchAccount(username) {
+  try { await S.store.switchAccount(username); }
+  catch (err) { toast(err.message); await showAuth(); const f = $("form.auth-card"); if (f) { f.u.value = username; f.p.focus(); } return; }
+  location.hash = "#/crear"; location.reload();
+}
+
+async function showAuth(adding = false) {
   const first = S.info && !S.info.has_users;
+  const accs = adding || first || S.store.mode !== "server" ? [] : await getAccounts();
   app.innerHTML = `<div class="auth"><canvas id="bgfx"></canvas>
     <form class="auth-card card" autocomplete="on">
       <div class="brand">${brandHtml()}</div>
-      <h2 id="a-title">${first ? "Crea la cuenta de administrador" : "Entra en tu generador de QR"}</h2>
+      <h2 id="a-title">${first ? "Crea la cuenta de administrador" : adding ? "Añadir otra cuenta" : accs.length ? "Elige una cuenta" : "Entra en tu generador de QR"}</h2>
+      ${accs.length ? `<div class="acc-list">${accs.map((a) => `<div class="acc-row"><button type="button" class="acc-pick" data-user="${esc(a.username)}" data-noi18n><span class="avatar sm">${avatarInner(a.username, a.avatar)}</span><span>${esc(a.username)}</span></button><button type="button" class="btn ghost icon acc-forget" data-forget="${esc(a.username)}" title="Quitar de este dispositivo">${icon("x")}</button></div>`).join("")}</div><div class="acc-or">o entra con otra cuenta</div>` : ""}
       <label class="field"><span>Usuario</span><input name="u" autocomplete="username" required minlength="3" maxlength="32"></label>
       <label class="field"><span>Contraseña</span><input name="p" type="password" autocomplete="current-password" required minlength="6"></label>
       <div class="auth-msg" id="a-msg"></div>
       <button class="btn primary" id="a-go">${first ? "Crear y entrar" : "Entrar"}</button>
       ${S.info?.allow_register && !first ? `<button type="button" class="btn ghost" id="a-sw">¿No tienes cuenta? Regístrate</button>` : ""}
+      ${adding ? `<button type="button" class="btn ghost" id="a-cancel">Cancelar y volver a mi cuenta</button>` : ""}
       ${langSeg("a-lang")}
     </form></div>`;
+  $("#a-cancel")?.addEventListener("click", () => location.reload());
+  $(".acc-list")?.addEventListener("click", async (e) => {
+    const f = e.target.closest("[data-forget]");
+    if (f) { await S.store.forgetAccount(f.dataset.forget).catch(() => {}); return showAuth(); }
+    const p = e.target.closest("[data-user]"); if (p) switchAccount(p.dataset.user);
+  });
   $("#a-lang").addEventListener("click", (e) => { const b = e.target.closest("[data-l]"); if (b && b.dataset.l !== LANG) setLang(b.dataset.l); });
   bgFx($("#bgfx"));
   let reg = first;
@@ -92,6 +110,7 @@ function showAuth() {
         if (!r.first) { msg.className = "auth-msg ok"; msg.textContent = r.msg; return; }
       }
       await S.store.login(u, p);
+      if (adding) { location.hash = "#/crear"; location.reload(); return; }
       S.me = await S.store.me(); S.brand = S.me.brand;
       await loadData(); shell(); route();
       if (reg) { confetti(); toast("¡Bienvenido! Crea tu primer QR"); }
@@ -147,14 +166,18 @@ function shell() {
     $("#theme").innerHTML = icon(now === "dark" ? "sun" : "moon");
     if (location.hash.startsWith("#/estadisticas")) route();
   };
-  $("#me")?.addEventListener("click", (e) => menu(e.currentTarget, [
+  $("#me")?.addEventListener("click", async (e) => { const anchor = e.currentTarget, accs = await getAccounts(); menu(anchor, [
     { icon: "user", label: S.me.username + (S.me.is_admin ? " · admin" : ""), run: () => (location.hash = "#/ajustes") },
     { icon: "key", label: "Cambiar contraseña", run: changePassword },
+    "-",
+    ...accs.map((a) => ({ icon: "users", label: a.username, run: () => switchAccount(a.username) })),
+    { icon: "plus", label: "Añadir otra cuenta", run: () => showAuth(true) },
     "-",
     { icon: "info", label: versionsText(), run: () => (location.hash = "#/ajustes") },
     "-",
     { icon: "logout", label: "Salir", danger: true, run: async () => { await S.store.logout(); location.reload(); } },
-  ]));
+    ...(accs.length ? [{ icon: "logout", label: "Salir de todas las cuentas", danger: true, run: async () => { await S.store.logoutAll(); location.reload(); } }] : []),
+  ]); });
 }
 
 let cleanup = null;

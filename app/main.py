@@ -158,17 +158,118 @@ async def login(c: Creds, request: Request):
         raise HTTPException(403, "Tu cuenta está pendiente de aprobación")
     if u["status"] != "approved":
         raise HTTPException(403, "Tu cuenta está bloqueada")
+    # si ya habia otra cuenta abierta en este dispositivo, se queda guardada para cambiar rapido
+    cur_tok = request.cookies.get(COOKIE, "")
+    cur = db.session_user(cur_tok)
+    keep = [cur_tok] if cur and cur["id"] != u["id"] else []
+    if cur and cur["id"] == u["id"]:
+        db.run("DELETE FROM sessions WHERE token=?", cur_tok)
     tok = db.new_session(u["id"])
     r = JSONResponse({"ok": True})
     r.set_cookie(COOKIE, tok, max_age=30 * 86400, httponly=True, samesite="lax")
+    _save_accounts(r, request, keep + _accounts(request), u["id"])
     return r
 
 
+class LogoutReq(BaseModel):
+    all: bool = False
+
+
 @app.post("/api/logout")
-def logout(request: Request):
+def logout(request: Request, b: LogoutReq | None = None):
     db.run("DELETE FROM sessions WHERE token=?", request.cookies.get(COOKIE, ""))
     r = JSONResponse({"ok": True})
     r.delete_cookie(COOKIE)
+    if b and b.all:  # salir de todas las cuentas de este dispositivo
+        for t in _accounts(request):
+            db.run("DELETE FROM sessions WHERE token=?", t)
+        r.delete_cookie(ACCOUNTS)
+    return r
+
+
+# --- cambio rapido de usuario ----------------------------------------------------
+# Como en Google: las cuentas que se han abierto en este dispositivo se recuerdan
+# (cada una con su propia sesion, guardada en una cookie que el JavaScript no puede leer)
+# y se puede pasar de una a otra sin volver a poner la contrasena. Para entrar en
+# una cuenta nueva siempre hace falta su contrasena. "Quitar" cierra esa sesion.
+ACCOUNTS = "qp_accounts"
+MAX_ACCOUNTS = 6
+
+
+def _accounts(request: Request) -> list[str]:
+    return [t for t in request.cookies.get(ACCOUNTS, "").split(".") if t][:MAX_ACCOUNTS * 2]
+
+
+def _clean_accounts(toks: list[str], current_uid: int | None) -> list[tuple[str, object]]:
+    """Quita sesiones caducadas, bloqueadas o repetidas (y las borra si sobran)."""
+    out, seen = [], {current_uid}
+    for t in dict.fromkeys(toks):
+        u = db.session_user(t)
+        if not u:
+            continue
+        if u["id"] in seen or len(out) >= MAX_ACCOUNTS:
+            db.run("DELETE FROM sessions WHERE token=?", t)
+            continue
+        seen.add(u["id"])
+        out.append((t, u))
+    return out
+
+
+def _save_accounts(r, request: Request, toks: list[str], current_uid: int | None):
+    good = [t for t, _ in _clean_accounts(toks, current_uid)]
+    if good:
+        r.set_cookie(ACCOUNTS, ".".join(good), max_age=30 * 86400, httponly=True, samesite="lax")
+    elif request.cookies.get(ACCOUNTS):
+        r.delete_cookie(ACCOUNTS)
+
+
+@app.get("/api/accounts")
+def accounts_list(request: Request):
+    """Cuentas recordadas en este dispositivo (sin contar la que esta abierta)."""
+    cur = db.session_user(request.cookies.get(COOKIE, ""))
+    toks = _accounts(request)
+    found = _clean_accounts(toks, cur["id"] if cur else None)
+    r = JSONResponse({"current": cur["username"] if cur else None,
+                      "accounts": [{"username": u["username"], "avatar": u["avatar"]}
+                                   for _, u in found]})
+    if [t for t, _ in found] != toks:
+        _save_accounts(r, request, toks, cur["id"] if cur else None)
+    return r
+
+
+class AccountReq(BaseModel):
+    username: str
+
+
+@app.post("/api/accounts/switch")
+def accounts_switch(b: AccountReq, request: Request):
+    cur_tok = request.cookies.get(COOKIE, "")
+    cur = db.session_user(cur_tok)
+    toks = _accounts(request)
+    found = _clean_accounts(toks, cur["id"] if cur else None)
+    target = next((t for t, u in found if u["username"] == b.username), None)
+    if not target:
+        raise HTTPException(400, "Esa cuenta ya no tiene la sesión abierta aquí. Entra con su contraseña")
+    rest = ([cur_tok] if cur else []) + [t for t, _ in found if t != target]
+    r = JSONResponse({"ok": True})
+    r.set_cookie(COOKIE, target, max_age=30 * 86400, httponly=True, samesite="lax")
+    _save_accounts(r, request, rest, db.session_user(target)["id"])
+    return r
+
+
+@app.post("/api/accounts/forget")
+def accounts_forget(b: AccountReq, request: Request):
+    """Quita una cuenta de la lista de este dispositivo (y cierra su sesion)."""
+    cur = db.session_user(request.cookies.get(COOKIE, ""))
+    toks = _accounts(request)
+    rest = []
+    for t, u in _clean_accounts(toks, cur["id"] if cur else None):
+        if u["username"] == b.username:
+            db.run("DELETE FROM sessions WHERE token=?", t)
+        else:
+            rest.append(t)
+    r = JSONResponse({"ok": True})
+    _save_accounts(r, request, rest, cur["id"] if cur else None)
     return r
 
 
