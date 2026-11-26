@@ -312,7 +312,7 @@ QRPanel se adapta al móvil. Además:
 La web y la app llevan **cada una su número**, y se ven **abajo del todo de cada página**
 («Web 1.0.2 · App 1.0.0») y en tu menú de usuario. Así sabes de un vistazo qué tienes.
 
-- Web: [`app/VERSION`](../app/VERSION), novedades en [`CHANGELOG.md`](../CHANGELOG.md).
+- Web: [`app/VERSION`](../app/VERSION), novedades en [`app/NOVEDADES.md`](../app/NOVEDADES.md).
 - App: `versionName` en `android/src/main/AndroidManifest.xml`, novedades en
   [`novedades.md`](../android/src/main/res/raw/novedades.md).
 - Se sube **siempre de poco en poco**, solo el último número: 1.0.0 → 1.0.1 → 1.0.2…

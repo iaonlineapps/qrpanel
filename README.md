@@ -349,7 +349,7 @@ QRPanel tiene **dos números de versión**, cada uno con su propio ritmo:
 
 | Qué | Dónde está el número | Dónde lo ves | Novedades |
 |---|---|---|---|
-| **Web (servidor)** | [`app/VERSION`](app/VERSION) | abajo de cada página y en **Ajustes → Acerca de** («Web 1.0.14») | [`CHANGELOG.md`](CHANGELOG.md) |
+| **Web (servidor)** | [`app/VERSION`](app/VERSION) | abajo de cada página y en **Ajustes → Acerca de** («Web 1.0.14») | [`app/NOVEDADES.md`](app/NOVEDADES.md) |
 | **App Android** | `versionName` en [`android/src/main/AndroidManifest.xml`](android/src/main/AndroidManifest.xml) | abajo de cada página («App 1.0.1», solo dentro de la app) y en el menú *Atrás* | [`novedades.md`](android/src/main/res/raw/novedades.md) |
 
 **Cómo se numeran:** siempre de poco en poco, subiendo solo el último número en cada
@@ -384,7 +384,7 @@ KEYSTORE=mi-clave.jks KS_PASS=tu-contraseña KEY_ALIAS=qrpanel ./android/build.s
 con la APK y las novedades.
 
 **Sacar una versión nueva de la web:** cambia el número de `app/VERSION`, apunta las
-novedades en `CHANGELOG.md` y súbelo. La imagen Docker se publica sola.
+novedades en `app/NOVEDADES.md` (y en inglés en `app/NOVEDADES.en.md`) y súbelo. La imagen Docker se publica sola.
 
 </details>
 
