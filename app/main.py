@@ -137,9 +137,10 @@ def register(c: Creds, request: Request):
     db.run("INSERT INTO users(username,pw_hash,is_admin,status,created) VALUES(?,?,?,?,?)",
            name, db.hash_pw(c.password), 1 if first else 0,
            "approved" if first else "pending", time.time())
+    code = db.new_recovery(db.q1("SELECT id FROM users WHERE username=?", name)["id"])
     if first:
-        return {"ok": True, "first": True, "msg": "Cuenta de administrador creada. Ya puedes entrar."}
-    return {"ok": True, "msg": "Cuenta creada. El administrador tiene que aprobarla antes de entrar."}
+        return {"ok": True, "first": True, "recovery_code": code, "msg": "Cuenta de administrador creada. Ya puedes entrar."}
+    return {"ok": True, "recovery_code": code, "msg": "Cuenta creada. El administrador tiene que aprobarla antes de entrar."}
 
 
 @app.post("/api/login")
@@ -165,7 +166,11 @@ async def login(c: Creds, request: Request):
     if cur and cur["id"] == u["id"]:
         db.run("DELETE FROM sessions WHERE token=?", cur_tok)
     tok = db.new_session(u["id"])
-    r = JSONResponse({"ok": True})
+    # las cuentas de antes no tenian codigo de recuperacion: se les da uno al entrar (se ve una vez)
+    out = {"ok": True}
+    if not u["recovery"]:
+        out["recovery_code"] = db.new_recovery(u["id"])
+    r = JSONResponse(out)
     r.set_cookie(COOKIE, tok, max_age=30 * 86400, httponly=True, samesite="lax")
     _save_accounts(r, request, keep + _accounts(request), u["id"])
     return r
@@ -273,6 +278,48 @@ def accounts_forget(b: AccountReq, request: Request):
     return r
 
 
+# --- he olvidado mi usuario o mi contrasena ---------------------------------------
+class RecoverReq(BaseModel):
+    username: str = Field("", max_length=64)  # opcional: si no se recuerda, basta con el codigo
+    code: str = Field(max_length=64)
+    password: str = Field(max_length=256)
+
+
+@app.post("/api/recover")
+async def recover(b: RecoverReq, request: Request):
+    """Con el codigo de recuperacion: dice el usuario, pone la contrasena nueva y da otro codigo."""
+    ip = client_ip(request)
+    wait = limits.recover.blocked(ip)
+    if wait:
+        raise HTTPException(429, f"Demasiados intentos fallidos. Espera {max(1, wait // 60)} min y vuelve a probar")
+    if len(b.password) < 6:
+        raise HTTPException(400, "La contraseña debe tener al menos 6 caracteres")
+    u = db.user_by_recovery(b.code)
+    name = b.username.strip()
+    if not u or (name and name.lower() != u["username"].lower()):
+        limits.recover.hit(ip)
+        await asyncio.sleep(0.7)
+        raise HTTPException(400, "El código de recuperación no es correcto")
+    limits.recover.reset(ip)
+    db.run("UPDATE users SET pw_hash=? WHERE id=?", db.hash_pw(b.password), u["id"])
+    db.run("DELETE FROM sessions WHERE user_id=?", u["id"])  # fuera de todas partes
+    limits.login_ok(ip, u["username"])
+    return {"ok": True, "username": u["username"], "status": u["status"],
+            "recovery_code": db.new_recovery(u["id"])}
+
+
+class RecoveryNew(BaseModel):
+    password: str = Field(max_length=256)
+
+
+@app.post("/api/recovery")
+def recovery_new(b: RecoveryNew, u=Depends(current_user)):
+    """Codigo de recuperacion nuevo (en «Código de recuperación»); el anterior deja de valer."""
+    if not db.check_pw(b.password, u["pw_hash"]):
+        raise HTTPException(400, "La contraseña actual no es correcta")
+    return {"ok": True, "recovery_code": db.new_recovery(u["id"])}
+
+
 class PwChange(BaseModel):
     old: str = Field(max_length=256)
     new: str = Field(max_length=256)
@@ -295,7 +342,7 @@ def me(request: Request, u=Depends(current_user)):
     return {"username": u["username"], "is_admin": bool(u["is_admin"]), "pending": pending,
             "version": VERSION, "public_url": public_base(request),
             "public_url_custom": db.setting("public_url") or PUBLIC_URL, "brand": brand(),
-            "avatar": u["avatar"]}
+            "avatar": u["avatar"], "has_recovery": bool(u["recovery"])}
 
 
 @app.get("/api/novedades")
@@ -783,7 +830,8 @@ def admin_create(b: NewUser, a=Depends(admin_user)):
         raise HTTPException(400, "Ese usuario ya existe")
     db.run("INSERT INTO users(username,pw_hash,is_admin,status,created) VALUES(?,?,?,'approved',?)",
            name, db.hash_pw(b.password), int(b.is_admin), time.time())
-    return {"ok": True}
+    # el administrador le pasa el codigo a la persona junto con su contrasena
+    return {"ok": True, "recovery_code": db.new_recovery(db.q1("SELECT id FROM users WHERE username=?", name)["id"])}
 
 
 class UserUpd(BaseModel):

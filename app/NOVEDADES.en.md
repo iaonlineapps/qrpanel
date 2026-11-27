@@ -2,6 +2,16 @@
 
 <!-- Newest version on top. Same versions and order as NOVEDADES.md (Spanish). -->
 
+## 1.0.17
+
+- **Forgot your username or password?** Every account now has a **recovery code**. It's shown
+  once when the account is created (if your account already existed, the next time you sign in).
+  You can copy it, send it to yourself on WhatsApp, Telegram or email, or download it as a file.
+- If you forget your username or password, tap «Forgot your username or password?» on the sign-in
+  screen, enter the code and a new password, and you'll also see your username.
+- If you lose it, get a new one from your photo menu (or Settings → Your account) → «Recovery code».
+- The administrator can still set a new password for anyone.
+
 ## 1.0.16
 
 - **What's new notice.** After QRPanel is updated, the first time you sign in a window shows you
