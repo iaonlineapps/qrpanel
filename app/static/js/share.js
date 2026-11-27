@@ -32,7 +32,7 @@ async function main() {
       <div class="row"><select id="fmt" class="input" style="width:auto"><option value="png">PNG</option><option value="svg">SVG</option><option value="jpg">JPG</option><option value="pdf">PDF</option></select>
         <button class="btn primary grow" id="dl">${icon("download")}Descargar</button></div>
       ${bn !== "QRPanel" || q.brand?.logo ? `<div class="row" style="justify-content:center;gap:8px">${q.brand?.logo ? `<img src="${esc(q.brand.logo)}" alt="" width="28" height="28" style="border-radius:8px;object-fit:contain">` : ""}<b>${esc(bn)}</b></div>` : ""}
-      <div class="small faint" style="text-align:center">Hecho con <a href="https://github.com/pctecnikk/qrpanel" target="_blank" rel="noopener">QRPanel</a> · tu propio generador de QR</div>
+      <div class="small faint" style="text-align:center">Hecho con <a href="https://github.com/iaonlineapps/qrpanel" target="_blank" rel="noopener">QRPanel</a> · tu propio generador de QR</div>
     </div></div>`;
   $("#dl").onclick = async (e) => {
     const rc = e.currentTarget.getBoundingClientRect();

@@ -167,7 +167,7 @@ public class MainActivity extends Activity {
         nbg.setColor(0xFF33270B); nbg.setCornerRadius(dp(12));
         need.setBackground(nbg);
         need.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) {
-            openExternal("https://github.com/pctecnikk/qrpanel#2-instalar");
+            openExternal("https://github.com/iaonlineapps/qrpanel#2-instalar");
         } });
 
         final EditText home = field(box, t("En casa (con tu wifi)", "At home (on your WiFi)"), "192.168.1.x:8091", prefs.getString(K_HOME, ""));
@@ -551,7 +551,7 @@ public class MainActivity extends Activity {
                 .setMessage(sb.toString().trim())
                 .setPositiveButton(t("Vale", "OK"), null)
                 .setNeutralButton("Ver en GitHub", new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int w) {
-                    openExternal("https://github.com/pctecnikk/qrpanel/releases");
+                    openExternal("https://github.com/iaonlineapps/qrpanel/releases");
                 } }).show();
     }
 

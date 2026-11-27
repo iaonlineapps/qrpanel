@@ -1,4 +1,4 @@
-# Publica la imagen Docker de QRPanel en GitHub (ghcr.io/pctecnikk/qrpanel)
+# Publica la imagen Docker de QRPanel en GitHub (ghcr.io/iaonlineapps/qrpanel)
 # para PC (amd64), Raspberry Pi 4/5 (arm64) y Raspberry Pi de 32 bits (arm/v7).
 # Se lanza al crear una versión (etiqueta v1.2.3) o a mano desde la pestaña Actions.
 name: Publicar imagen Docker

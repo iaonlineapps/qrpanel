@@ -143,7 +143,7 @@ function bgFx(cv) {
 // --- versiones (web y app de Android), para ver de un vistazo si van acordes
 const webVersion = () => S.info?.version || S.me?.version || "";
 const versionsText = () => `Web ${webVersion()}` + (APP ? ` · App ${appVersion()}` : "");
-const versionsHtml = () => `QRPanel · <b>Web ${esc(webVersion())}</b>` + (APP ? ` · <b>App ${esc(appVersion())}</b>` : ` · <a href="https://github.com/pctecnikk/qrpanel/releases?q=android&expanded=true" target="_blank" rel="noopener">App Android</a>`)
+const versionsHtml = () => `QRPanel · <b>Web ${esc(webVersion())}</b>` + (APP ? ` · <b>App ${esc(appVersion())}</b>` : ` · <a href="https://github.com/iaonlineapps/qrpanel/releases?q=android&expanded=true" target="_blank" rel="noopener">App Android</a>`)
   + (S.store?.mode === "server" ? ` · <a href="#" data-news>Novedades</a>` : "");
 
 // --- novedades: tras actualizar el servidor se enseñan una vez (en el navegador y en la app)
@@ -800,7 +800,7 @@ function viewCreate(v, arg) {
     const c = content() || " ";
     const empty = !encode(E.kind, E.fields[E.kind] || {}).replace(/^https?:\/\//, "").trim() && E.kind !== "wifi";
     let r;
-    try { r = render(empty ? "https://github.com/pctecnikk/qrpanel" : c, E.design, { logoSrc: logoSrc(E.design) }); }
+    try { r = render(empty ? "https://github.com/iaonlineapps/qrpanel" : c, E.design, { logoSrc: logoSrc(E.design) }); }
     catch { qrbox.innerHTML = `<div class="muted pad">Hay demasiado texto para un QR. Acórtalo o usa un QR dinámico.</div>`; return; }
     qrbox.innerHTML = r.svg;
     qrbox.style.opacity = empty ? ".35" : "1";
@@ -1570,7 +1570,7 @@ function hbars(list) {
 
 async function viewStats(v) {
   if (S.store.mode === "local") {
-    v.innerHTML = `<div class="page-head"><div><h1>Estadísticas</h1></div></div><div class="card empty">${icon("chart", "lg")}<h3 style="margin:0">Las estadísticas necesitan el servidor</h3><p class="muted" style="margin:0;max-width:460px">Para saber cuántas veces escanean tus QR, instala QRPanel en tu servidor (Docker) y crea QR dinámicos. Mira las instrucciones en GitHub.</p><a class="btn" href="https://github.com/pctecnikk/qrpanel" target="_blank" rel="noopener">${icon("github")}Ver en GitHub</a></div>`;
+    v.innerHTML = `<div class="page-head"><div><h1>Estadísticas</h1></div></div><div class="card empty">${icon("chart", "lg")}<h3 style="margin:0">Las estadísticas necesitan el servidor</h3><p class="muted" style="margin:0;max-width:460px">Para saber cuántas veces escanean tus QR, instala QRPanel en tu servidor (Docker) y crea QR dinámicos. Mira las instrucciones en GitHub.</p><a class="btn" href="https://github.com/iaonlineapps/qrpanel" target="_blank" rel="noopener">${icon("github")}Ver en GitHub</a></div>`;
     return;
   }
   v.innerHTML = `<div class="page-head"><div><h1>Estadísticas</h1><p>Lecturas de tus QR dinámicos en los últimos 30 días.</p></div></div><div class="kpis" id="kpis"></div><div class="charts" id="charts"></div>`;
@@ -1803,7 +1803,7 @@ async function viewSettings(v) {
       <div class="small muted">Estás en la app QRPanel ${esc(appVersion())}. Si cambias de casa a fuera (o al revés), la app elige sola la dirección que funciona.</div>
       <div class="row"><button class="btn" id="appsrv">${icon("globe")}Cambiar servidor</button><button class="btn ghost" id="appnews">${icon("sparkle")}Novedades de la app</button></div></div>` : `<div class="card pad"><h3>${icon("phone")}App para Android</h3>
       <div class="small muted">Descarga la app QRPanel (APK) para entrar desde el móvil con tu usuario, en casa o desde fuera. Guarda y comparte los QR por WhatsApp, Telegram…</div>
-      <div class="row"><a class="btn" href="https://github.com/pctecnikk/qrpanel/releases?q=android&expanded=true" target="_blank" rel="noopener">${icon("download")}Descargar la app</a></div></div>`}
+      <div class="row"><a class="btn" href="https://github.com/iaonlineapps/qrpanel/releases?q=android&expanded=true" target="_blank" rel="noopener">${icon("download")}Descargar la app</a></div></div>`}
 
     ${APP ? "" : `<div class="card pad"><h3>${icon("install")}Instalar como app</h3>
       <div class="small muted">QRPanel funciona como una app: con su icono, a pantalla completa y sin conexión para crear y escanear.</div>
@@ -1838,7 +1838,7 @@ async function viewSettings(v) {
     <div class="card pad"><h3>${icon("info")}Acerca de</h3>
       <div class="small"><b>Web ${esc(S.info?.version || S.me.version || "")}</b>${APP ? ` · <b>App ${esc(appVersion())}</b>` : ""} · QRPanel, tu propio generador de códigos QR. Código disponible gratis para uso no comercial (licencia PolyForm Noncommercial).</div>
       <div class="small faint">«QR Code» es una marca registrada de DENSO WAVE INCORPORATED. Los nombres de servicios que aparecen (WhatsApp, Google Maps…) son de sus dueños y solo se usan para indicar con qué funcionan.</div>
-      <div class="row"><a class="btn sm" href="https://github.com/pctecnikk/qrpanel" target="_blank" rel="noopener">${icon("github", "sm")}GitHub</a><a class="btn sm ghost" href="/static/vendor/LICENSES.txt" target="_blank">Licencias</a>${S.store.mode === "server" ? `<button class="btn sm ghost" data-news>${icon("sparkle", "sm")}Novedades</button>` : ""}</div>
+      <div class="row"><a class="btn sm" href="https://github.com/iaonlineapps/qrpanel" target="_blank" rel="noopener">${icon("github", "sm")}GitHub</a><a class="btn sm ghost" href="/static/vendor/LICENSES.txt" target="_blank">Licencias</a>${S.store.mode === "server" ? `<button class="btn sm ghost" data-news>${icon("sparkle", "sm")}Novedades</button>` : ""}</div>
       <div class="small faint">Atajos: Ctrl+S guardar · Ctrl+Z deshacer · Ctrl+Y rehacer · Ctrl+V pegar logo o imagen.</div></div>
   </div>`;
   $("#lang-seg", v).onclick = (e) => { const b = e.target.closest("[data-l]"); if (b && b.dataset.l !== LANG) setLang(b.dataset.l); };

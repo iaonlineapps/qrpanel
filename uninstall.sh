@@ -9,7 +9,7 @@ set -uo pipefail
 APP="QRPanel"
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONTAINER="qr-panel"
-IMAGES="qr-panel:latest ghcr.io/pctecnikk/qrpanel"
+IMAGES="qr-panel:latest ghcr.io/iaonlineapps/qrpanel"
 DATA_DIR="./data"
 # si hay .env con DATA_DIR, manda ese
 if [ -f "$APP_DIR/.env" ]; then
@@ -94,6 +94,6 @@ echo "  ¡Gracias por haber usado $APP!"
 echo "  Esperamos que te haya gustado."
 echo
 echo "  Si te faltó algo o tienes una idea, cuéntanoslo en:"
-echo "  https://github.com/pctecnikk/qrpanel/issues"
-echo "  Y si algún día quieres volver, aquí estará: https://github.com/pctecnikk/qrpanel"
+echo "  https://github.com/iaonlineapps/qrpanel/issues"
+echo "  Y si algún día quieres volver, aquí estará: https://github.com/iaonlineapps/qrpanel"
 echo "----------------------------------------------"
