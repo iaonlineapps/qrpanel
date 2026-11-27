@@ -154,7 +154,9 @@ function bgFx(cv) {
 const webVersion = () => S.info?.version || S.me?.version || "";
 const versionsText = () => `Web ${webVersion()}` + (APP ? ` · App ${appVersion()}` : "");
 const versionsHtml = () => `QRPanel · <b>Web ${esc(webVersion())}</b>` + (APP ? ` · <b>App ${esc(appVersion())}</b>` : ` · <a href="https://github.com/iaonlineapps/qrpanel/releases?q=android&expanded=true" target="_blank" rel="noopener">App Android</a>`)
-  + (S.store?.mode === "server" ? ` · <a href="#" data-news>Novedades</a>` : "");
+  + (S.store?.mode === "server" ? ` · <a href="#" data-news>Novedades</a>` : "")
+  + `<span class="madeby">💛 <span>${tr("Proyecto sin ánimo de lucro, gratis y sin anuncios")}</span> · 🤖 <span>${tr("App creada con ayuda de inteligencia artificial (IA)")}</span> · `
+  + `© 2026 <a href="https://github.com/iaonlineapps/qrpanel" target="_blank" rel="noopener" translate="no">IA Online Apps</a> · <span>${tr("Uso personal no comercial")}</span></span>`;
 
 // --- novedades: tras actualizar el servidor se enseñan una vez (en el navegador y en la app)
 const verNewer = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };

@@ -408,6 +408,7 @@ details.table td,details.table th{padding:4px 6px;border-bottom:1px solid var(--
 
 .ver-foot{text-align:center;font-size:12px;color:var(--faint,var(--muted));padding:18px 12px 22px;opacity:.85}
 .ver-foot b{font-weight:600;color:var(--muted)}.ver-foot a{color:inherit}
+.ver-foot .madeby{display:block;margin-top:6px;font-size:11px;line-height:1.6;opacity:.9}
 @media (max-width:760px){.ver-foot{padding-bottom:90px}}
 .p3d-form input[type=range]{accent-color:var(--accent)}
 
