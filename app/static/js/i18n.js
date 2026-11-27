@@ -8,7 +8,7 @@ export const LANG = saved === "es" || saved === "en" ? saved : (navigator.langua
 let DICT = null, FRAGS = [];
 if (LANG === "en") {
   try {
-    DICT = await (await fetch("/static/js/i18n-en.json?v=6")).json();
+    DICT = await (await fetch("/static/js/i18n-en.json?v=7")).json();
     // los trozos largos se traducen también dentro de frases con datos (números, nombres…)
     FRAGS = Object.keys(DICT).filter((k) => k.length >= 12 && k.includes(" ")).sort((a, b) => b.length - a.length);
   } catch { DICT = null; }

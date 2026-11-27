@@ -10,6 +10,7 @@ import { makePdf, makePdfPages } from "./pdf.js";
 import { build as build3d, toSTL, to3MF, toSTLParts, DEFAULT_3D } from "./model3d.js";
 import { viewer } from "./viewer3d.js";
 import { drawFace, buildStand, DEFAULT_STAND, PALETTE } from "./stand3d.js";
+import { recoveryCodeDialog, forgotDialog, newRecoveryDialog, recoveredMsg } from "./recovery.js";
 import { cropDlg, icon, quickLogo, $, $$, esc, debounce, h, toast, dialog, confirmDlg, promptDlg, menu, confetti, fmtDate, ago, fmtN, download, slug, readImage, fileToCanvas, APP, appVersion, shareFile, shareText, canShareText } from "./ui.js";
 if (LANG === "en") DEFAULT_DESIGN.frame.text = "SCAN ME";
 
@@ -81,6 +82,7 @@ async function showAuth(adding = false) {
       <label class="field"><span>Contraseña</span><input name="p" type="password" autocomplete="current-password" required minlength="6"></label>
       <div class="auth-msg" id="a-msg"></div>
       <button class="btn primary" id="a-go">${first ? "Crear y entrar" : "Entrar"}</button>
+      ${first ? "" : `<button type="button" class="btn ghost" id="a-forgot">¿Has olvidado tu usuario o contraseña?</button>`}
       ${S.info?.allow_register && !first ? `<button type="button" class="btn ghost" id="a-sw">¿No tienes cuenta? Regístrate</button>` : ""}
       ${adding ? `<button type="button" class="btn ghost" id="a-cancel">Cancelar y volver a mi cuenta</button>` : ""}
       ${langSeg("a-lang")}
@@ -93,6 +95,12 @@ async function showAuth(adding = false) {
   });
   $("#a-lang").addEventListener("click", (e) => { const b = e.target.closest("[data-l]"); if (b && b.dataset.l !== LANG) setLang(b.dataset.l); });
   bgFx($("#bgfx"));
+  $("#a-forgot")?.addEventListener("click", async () => {
+    const r = await forgotDialog(); if (!r) return;
+    const f = $("form.auth-card"), msg = $("#a-msg");
+    f.u.value = r.username; f.p.value = ""; f.p.focus();
+    msg.className = "auth-msg" + (r.status === "approved" ? " ok" : ""); msg.textContent = recoveredMsg(r.status);
+  });
   let reg = first;
   $("#a-sw")?.addEventListener("click", () => {
     reg = !reg;
@@ -108,9 +116,11 @@ async function showAuth(adding = false) {
     try {
       if (reg) {
         const r = await S.store.register(u, p);
+        if (r.recovery_code) await recoveryCodeDialog(r.recovery_code, u);
         if (!r.first) { msg.className = "auth-msg ok"; msg.textContent = r.msg; return; }
       }
-      await S.store.login(u, p);
+      const lr = await S.store.login(u, p);
+      if (lr?.recovery_code) await recoveryCodeDialog(lr.recovery_code, u);
       if (adding) { location.hash = "#/crear"; location.reload(); return; }
       S.me = await S.store.me(); S.brand = S.me.brand;
       await loadData(); shell(); route();
@@ -195,6 +205,7 @@ function shell() {
   $("#me")?.addEventListener("click", async (e) => { const anchor = e.currentTarget, accs = await getAccounts(); menu(anchor, [
     { icon: "user", label: S.me.username + (S.me.is_admin ? " · admin" : ""), run: () => (location.hash = "#/ajustes") },
     { icon: "key", label: "Cambiar contraseña", run: changePassword },
+    { icon: "lock", label: "Código de recuperación", run: () => newRecoveryDialog(S.me.username) },
     "-",
     ...accs.map((a) => ({ icon: "users", label: a.username, run: () => switchAccount(a.username) })),
     { icon: "plus", label: "Añadir otra cuenta", run: () => showAuth(true) },
@@ -1818,7 +1829,7 @@ async function viewSettings(v) {
       <div class="row acct"><span class="avatar xl" id="avbig">${avatarInner(S.me.username, S.me.avatar)}</span>
         <div class="grow"><b>${esc(S.me.username)}</b><div class="small muted">Tu foto de perfil o el logo de tu marca. Sale arriba a la derecha y en las páginas que compartes.</div>
         <div class="row" style="flex-wrap:wrap;margin-top:6px"><button class="btn sm" id="avset">${icon("image", "sm")}${S.me.avatar ? "Cambiar foto o logo" : "Poner foto o logo"}</button>${S.me.avatar ? `<button class="btn sm ghost" id="avdel">Quitar</button>` : ""}<input type="file" id="avfile" accept="image/*" hidden></div></div></div>
-      <div class="row"><button class="btn" id="pw">${icon("key")}Cambiar contraseña</button><button class="btn danger" id="out">${icon("logout")}Salir</button></div></div>` : ""}
+      <div class="row"><button class="btn" id="pw">${icon("key")}Cambiar contraseña</button><button class="btn" id="rcode">${icon("lock")}Código de recuperación</button><button class="btn danger" id="out">${icon("logout")}Salir</button></div></div>` : ""}
 
     ${admin ? `<div class="card pad"><h3>${icon("globe")}Dirección pública</h3>
       <div class="small muted">La dirección con la que se llega a QRPanel desde internet. Es la que llevan dentro los QR dinámicos, así que ponla <b>antes</b> de imprimirlos. Ejemplo: <code>https://qr.midominio.com</code></div>
@@ -1858,6 +1869,7 @@ async function viewSettings(v) {
     } catch (err) { toast(err.message, "bad"); }
   };
   $("#pw", v)?.addEventListener("click", changePassword);
+  $("#rcode", v)?.addEventListener("click", () => newRecoveryDialog(S.me.username));
   $("#avset", v)?.addEventListener("click", () => $("#avfile", v).click());
   $("#avfile", v)?.addEventListener("change", async (e) => {
     const file = e.target.files[0]; if (!file) return;
@@ -1910,7 +1922,7 @@ async function viewSettings(v) {
       buttons: [["Cancelar", null], ["Crear", (w) => ({ username: w.querySelector("#nu").value, password: w.querySelector("#np").value, is_admin: w.querySelector("#na").checked }), "primary"]],
     });
     if (!r) return;
-    try { await S.store.addUser(r); toast("Usuario creado"); users(); } catch (e) { toast(e.message, "bad"); }
+    try { const x = await S.store.addUser(r); toast("Usuario creado"); users(); if (x?.recovery_code) recoveryCodeDialog(x.recovery_code, r.username.trim(), true); } catch (e) { toast(e.message, "bad"); }
   };
   users();
 }

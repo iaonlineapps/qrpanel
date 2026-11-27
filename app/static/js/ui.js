@@ -100,17 +100,18 @@ export function toast(msg, kind = "") {
 }
 
 /** Dialogo propio (sin alert ni confirm). Devuelve el valor del boton pulsado. */
-export function dialog({ title, body = "", buttons = [["Cancelar", null], ["Aceptar", true, "primary"]], wide = false, onOpen }) {
+export function dialog({ title, body = "", buttons = [["Cancelar", null], ["Aceptar", true, "primary"]], wide = false, onOpen, sticky = false }) {
   return new Promise((resolve) => {
     const wrap = h(`<div class="dlg-wrap"><div class="dlg card ${wide ? "wide" : ""}" role="dialog" aria-modal="true">
-      ${title ? `<div class="row between"><h3>${esc(title)}</h3><button class="btn ghost icon" data-x aria-label="Cerrar">${icon("x")}</button></div>` : ""}
+      ${title ? `<div class="row between"><h3>${esc(title)}</h3>${sticky ? "" : `<button class="btn ghost icon" data-x aria-label="Cerrar">${icon("x")}</button>`}</div>` : ""}
       <div class="dlg-body">${body}</div>
       ${buttons.length ? `<div class="btns">${buttons.map(([t, , c], i) => `<button class="btn ${c || ""}" data-b="${i}">${esc(t)}</button>`).join("")}</div>` : ""}
     </div></div>`);
     const close = (v) => { wrap.remove(); document.removeEventListener("keydown", key); resolve(v); };
-    const key = (e) => { if (e.key === "Escape") close(null); };
+    // sticky: solo se cierra con sus botones (p. ej. el código de recuperación, que no se pierda sin verlo)
+    const key = (e) => { if (e.key === "Escape" && !sticky) close(null); };
     wrap.addEventListener("click", (e) => {
-      if (e.target === wrap || e.target.closest("[data-x]")) return close(null);
+      if ((e.target === wrap && !sticky) || e.target.closest("[data-x]")) return close(null);
       const b = e.target.closest("[data-b]");
       if (b) {
         const v = buttons[+b.dataset.b][1];

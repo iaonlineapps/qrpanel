@@ -42,6 +42,8 @@ by_user = Limiter(30, 900, 900)
 # 50 fallos con el mismo QR desde cualquier sitio -> 30 minutos (contra ataques repartidos).
 pin_ip = Limiter(5, 600, 900)
 pin_qr = Limiter(50, 3600, 1800)
+# Codigo de recuperacion: 5 fallos desde la misma IP en 15 minutos -> 30 minutos de espera.
+recover = Limiter(5, 900, 1800)
 # Registro: como mucho 5 cuentas nuevas por IP y hora.
 register = Limiter(5, 3600, 3600)
 

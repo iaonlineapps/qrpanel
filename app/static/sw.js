@@ -1,8 +1,8 @@
 // Service worker de QRPanel: la app abre sin conexion (crear y escanear).
 // La API y las redirecciones /r/ van siempre a la red.
-const CACHE = "qrpanel-v22";
-const SHELL = ["/", "/static/app.css?v=11", "/static/js/app.js?v=17", "/static/js/i18n.js", "/static/js/i18n-en.json?v=6", "/static/js/qr.js", "/static/js/content.js",
-  "/static/js/store.js", "/static/js/presets.js", "/static/js/zip.js", "/static/js/pdf.js", "/static/js/model3d.js", "/static/js/viewer3d.js", "/static/js/animals.js", "/static/js/poster.js", "/static/js/stand3d.js", "/static/menu.css?v=3", "/static/js/place.js?v=3", "/static/js/share.js", "/static/js/ui.js", "/static/vendor/qrcode.js",
+const CACHE = "qrpanel-v23";
+const SHELL = ["/", "/static/app.css?v=12", "/static/js/app.js?v=18", "/static/js/i18n.js", "/static/js/i18n-en.json?v=7", "/static/js/qr.js", "/static/js/content.js",
+  "/static/js/store.js", "/static/js/presets.js", "/static/js/zip.js", "/static/js/pdf.js", "/static/js/model3d.js", "/static/js/viewer3d.js", "/static/js/animals.js", "/static/js/poster.js", "/static/js/stand3d.js", "/static/menu.css?v=3", "/static/js/place.js?v=3", "/static/js/share.js", "/static/js/ui.js", "/static/js/recovery.js", "/static/vendor/qrcode.js",
   "/static/vendor/jsQR.min.js", "/static/icons/icon.svg", "/static/icons/icon-192.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {

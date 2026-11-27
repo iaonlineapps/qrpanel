@@ -5,6 +5,16 @@
      La traducción al inglés está en NOVEDADES.en.md (mismas versiones, mismo orden).
      La app de Android tiene sus propias novedades en android/src/main/res/raw/novedades.md. -->
 
+## 1.0.17
+
+- **¿Has olvidado tu usuario o tu contraseña?** Ahora cada cuenta tiene un **código de
+  recuperación**. Te lo enseñamos una vez al crear la cuenta (si tu cuenta ya existía, la próxima
+  vez que entres). Puedes copiarlo, mandártelo por WhatsApp, Telegram o correo, o bajarlo como archivo.
+- Si olvidas el usuario o la contraseña, en la pantalla de entrada toca «¿Has olvidado tu usuario
+  o contraseña?», pon el código y una contraseña nueva, y verás también tu usuario.
+- Si lo pierdes, en el menú de tu foto (o en Ajustes → Tu cuenta) → «Código de recuperación» puedes sacar uno nuevo.
+- El administrador sigue pudiendo poner una contraseña nueva a cualquiera.
+
 ## 1.0.16
 
 - **Aviso de novedades.** Después de actualizar QRPanel, la primera vez que entras te sale una
