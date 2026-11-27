@@ -2,6 +2,10 @@
 
 <!-- Newest version on top. Same versions and order as NOVEDADES.md (Spanish). -->
 
+## 1.0.18
+
+- **New footer:** at the very bottom you now see «Non-profit project, free and ad-free · App made with the help of artificial intelligence (AI) · © 2026 IA Online Apps · Personal, non-commercial use».
+
 ## 1.0.17
 
 - **Forgot your username or password?** Every account now has a **recovery code**. It's shown

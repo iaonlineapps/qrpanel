@@ -490,3 +490,9 @@ generador. No incluye fuentes tipográficas: usa las del sistema.
 "QR Code" es una marca registrada de DENSO WAVE INCORPORATED.
 
 Copyright (c) 2026 [IA Online Apps](https://github.com/iaonlineapps)
+
+---
+
+💛 Proyecto sin ánimo de lucro, gratis y sin anuncios · 🤖 App creada con ayuda de inteligencia artificial (IA) · © 2026 [IA Online Apps](https://github.com/iaonlineapps) · Uso personal no comercial
+
+💛 Non-profit project, free and ad-free · 🤖 App made with the help of artificial intelligence (AI) · © 2026 [IA Online Apps](https://github.com/iaonlineapps) · Personal, non-commercial use
