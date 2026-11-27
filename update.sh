@@ -2,7 +2,7 @@
 # Actualiza QRPanel a la última versión de GitHub, sin tocar tus datos.
 #
 # Uso en la Pi (o en cualquier Linux con Docker), por SSH:
-#   curl -fsSL https://raw.githubusercontent.com/pctecnikk/qrpanel/main/update.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/iaonlineapps/qrpanel/main/update.sh | bash
 # o, desde la carpeta de QRPanel:
 #   ./update.sh
 #
@@ -12,7 +12,7 @@
 set -euo pipefail
 
 NAME="QRPanel"
-REPO="https://github.com/pctecnikk/qrpanel.git"
+REPO="https://github.com/iaonlineapps/qrpanel.git"
 CONTAINER="qr-panel"
 PORT_DEFAULT="8091"
 URL_PATH=""

@@ -114,7 +114,7 @@ and several users approved by the admin · backup export and import · Android a
 **Install:**
 
 ```bash
-git clone https://github.com/pctecnikk/qrpanel.git
+git clone https://github.com/iaonlineapps/qrpanel.git
 cd qrpanel
 ./install.sh       # the first time it only creates the .env file
 nano .env          # set DATA_DIR and, if you have a domain, PUBLIC_URL
@@ -130,14 +130,14 @@ administrator**; later sign-ups wait until the admin approves them in **Settings
 admin creates accounts).
 
 **Update:** one line over SSH, from any folder:
-`curl -fsSL https://raw.githubusercontent.com/pctecnikk/qrpanel/main/update.sh | bash`.
+`curl -fsSL https://raw.githubusercontent.com/iaonlineapps/qrpanel/main/update.sh | bash`.
 Your data, `.env` and `docker-compose.yaml` are kept.
 
-**Ready-made image** (no build): `ghcr.io/pctecnikk/qrpanel:latest`, for PC (amd64) and
+**Ready-made image** (no build): `ghcr.io/iaonlineapps/qrpanel:latest`, for PC (amd64) and
 Raspberry Pi (arm64 and arm/v7).
 
 **Android app:** download **QRPanel.apk** from
-[Releases](https://github.com/pctecnikk/qrpanel/releases) (Android 7 or newer). The first time
+[Releases](https://github.com/iaonlineapps/qrpanel/releases) (Android 7 or newer). The first time
 it asks for your server address.
 
 **Uninstall:** `cd qrpanel && bash uninstall.sh`. It asks before deleting anything, offers a
@@ -235,7 +235,7 @@ funcionar. Con QRPanel son tuyos para siempre.
 ## 2. Instalar
 
 ```bash
-git clone https://github.com/pctecnikk/qrpanel.git
+git clone https://github.com/iaonlineapps/qrpanel.git
 cd qrpanel
 ./install.sh       # la primera vez solo crea el archivo .env con tu usuario
 nano .env          # elige DATA_DIR y, si tienes dominio, PUBLIC_URL
@@ -246,7 +246,7 @@ La primera instalación tarda un par de minutos. La base de datos (SQLite) se cr
 dentro de `DATA_DIR/config/` al arrancar.
 
 **Con la imagen ya hecha** (sin compilar nada), cambia en `docker-compose.yaml` la línea
-`build: .` por `image: ghcr.io/pctecnikk/qrpanel:latest` y quita `image: qr-panel:latest`.
+`build: .` por `image: ghcr.io/iaonlineapps/qrpanel:latest` y quita `image: qr-panel:latest`.
 La imagen sirve para PC (amd64) y Raspberry Pi (arm64 y arm/v7).
 
 ### Primer acceso
@@ -291,7 +291,7 @@ carpeta (o usar **Ajustes → Copia de seguridad → Exportar**).
 Entra por SSH en el servidor y pega esta línea. Sirve desde cualquier carpeta:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/pctecnikk/qrpanel/main/update.sh | bash
+curl -fsSL https://raw.githubusercontent.com/iaonlineapps/qrpanel/main/update.sh | bash
 ```
 
 Busca dónde está instalado QRPanel, baja el código nuevo, reconstruye, arranca y te dice la
@@ -313,7 +313,7 @@ Es la misma web de QRPanel dentro de una app, así que siempre está al día con
 
 **Instalarla en el móvil:**
 
-1. Abre en el móvil la página de **[descargas (Releases)](https://github.com/pctecnikk/qrpanel/releases)**,
+1. Abre en el móvil la página de **[descargas (Releases)](https://github.com/iaonlineapps/qrpanel/releases)**,
    busca la más nueva que se llama **App Android** y toca **`QRPanel.apk`**.
 2. Al abrir el archivo, Android pedirá permiso para **instalar apps de origen desconocido**.
    Dale permiso y toca **Instalar**. Si aparece *Play Protect*, toca **Más detalles →
@@ -489,4 +489,4 @@ completos están en [`app/static/vendor/`](app/static/vendor/LICENSES.txt). Todo
 generador. No incluye fuentes tipográficas: usa las del sistema.
 "QR Code" es una marca registrada de DENSO WAVE INCORPORATED.
 
-Copyright (c) 2026 [pctecnikk](https://github.com/pctecnikk)
+Copyright (c) 2026 [IA Online Apps](https://github.com/iaonlineapps)
